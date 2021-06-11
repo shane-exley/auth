@@ -51,15 +51,15 @@ type digestAuth struct {
 	CNonce string `json:"cnonse"`
 }
 
-// // UnmarshalBinary converts bytes to storage object
-// func (d *digestAuth) UnmarshalBinary(data []byte) error {
-// 	return json.Unmarshal(data, d)
-// }
-//
-// // MarshalBinary converts storage object to bytes
-// func (d *digestAuth) MarshalBinary() ([]byte, error) {
-// 	return json.Marshal(d)
-// }
+// UnmarshalBinary converts bytes to storage object
+func (d *digestAuth) UnmarshalBinary(data []byte) error {
+	return json.Unmarshal(data, d)
+}
+
+// MarshalBinary converts storage object to bytes
+func (d *digestAuth) MarshalBinary() ([]byte, error) {
+	return json.Marshal(d)
+}
 
 // Auth holds our authetication and authorisation
 type Auth struct {
