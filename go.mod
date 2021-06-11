@@ -1,4 +1,4 @@
-module auth
+module github.com/shane-exley/auth
 
 go 1.14
 
