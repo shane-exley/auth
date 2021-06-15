@@ -3,6 +3,8 @@
 package auth
 
 import (
+	"bytes"
+	"encoding/gob"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -16,6 +18,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
+
+func Test_MarshalBinary(t *testing.T) {
+	var network bytes.Buffer
+	enc := gob.NewEncoder(&network)
+	assert.Nil(t, enc.Encode(&digestAuth{}))
+}
 
 func Test_NewAuth(t *testing.T) {
 	var a *Auth

@@ -193,7 +193,7 @@ func (a *Auth) Digest(qop string, h http.Handler) http.HandlerFunc {
 		}
 		var stale = false
 		//now we have to validate the nonce
-		d, err := cacheGetAndDelete(a.storage, auth["nonce"])
+		d, err := storageGetAndDelete(a.storage, auth["nonce"])
 		if err == nil {
 			if d != "" {
 				var digest digestAuth
@@ -263,7 +263,7 @@ func (a *Auth) Digest(qop string, h http.Handler) http.HandlerFunc {
 		newnonce = guuid.New().String()
 		// this can be done concurrent with return, we use the nonce as the key and the client ID as the value
 		go func(nonce string, obj interface{}) {
-			cacheSet(a.storage, nonce, obj, NonceTTL)
+			storageSet(a.storage, nonce, obj, NonceTTL)
 			return
 		}(newnonce, &digestAuth{
 			HA1: md5(strings.Join([]string{
@@ -307,7 +307,7 @@ func (a *Auth) Digest(qop string, h http.Handler) http.HandlerFunc {
 									nc++
 
 									go func(nonce string, obj interface{}) {
-										cacheSet(a.storage, nonce, obj, NonceTTL)
+										storageSet(a.storage, nonce, obj, NonceTTL)
 										return
 									}(auth["nonce"], &digestAuth{
 										HA1: md5(strings.Join([]string{

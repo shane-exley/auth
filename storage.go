@@ -20,8 +20,8 @@ type RedisClient interface {
 	Set(key string, value interface{}, expiration time.Duration) *redis.StatusCmd
 }
 
-// cacheGet retreives a value for the specified key
-func cacheGet(storage RedisClient, key string) (res string, err error) {
+// storageGet retreives a value for the specified key
+func storageGet(storage RedisClient, key string) (res string, err error) {
 	for c := 0; c < 3; c++ {
 		res, err = storage.Get(key).Result()
 
@@ -36,8 +36,8 @@ func cacheGet(storage RedisClient, key string) (res string, err error) {
 	return res, err
 }
 
-// cacheSet inserts the store object into the cache for the specified key
-func cacheSet(storage RedisClient, key string, obj interface{}, ttl time.Duration) (err error) {
+// storageSet inserts the store object into the cache for the specified key
+func storageSet(storage RedisClient, key string, obj interface{}, ttl time.Duration) (err error) {
 	for c := 0; c < 3; c++ {
 		if err = storage.Set(key, obj, ttl).Err(); err != nil {
 			time.Sleep(boff.Duration())
@@ -50,8 +50,8 @@ func cacheSet(storage RedisClient, key string, obj interface{}, ttl time.Duratio
 	return err
 }
 
-// cacheDelete deletes the store object from the cache for a specified key
-func cacheDelete(storage RedisClient, key string) (err error) {
+// storageDelete deletes the store object from the cache for a specified key
+func storageDelete(storage RedisClient, key string) (err error) {
 	for c := 0; c < 3; c++ {
 		if err = storage.Del(key).Err(); err != nil {
 			time.Sleep(boff.Duration())
@@ -64,11 +64,11 @@ func cacheDelete(storage RedisClient, key string) (err error) {
 	return err
 }
 
-// cacheGetAndDelete retreives a value for the specified key and upon finding, deletes.
-func cacheGetAndDelete(storage RedisClient, key string) (string, error) {
-	item, err := cacheGet(storage, key)
+// storageGetAndDelete retreives a value for the specified key and upon finding, deletes.
+func storageGetAndDelete(storage RedisClient, key string) (string, error) {
+	item, err := storageGet(storage, key)
 
-	go cacheDelete(storage, key)
+	go storageDelete(storage, key)
 
 	return item, err
 }
