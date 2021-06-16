@@ -1,10 +1,12 @@
+package auth
+
 /*
   This package is to determine a consumers authentication and authorisation to a handler
 
   ```
   [{
-      "user": "testuser",
-      "pass": "testpass",
+      "user": "username",
+      "pass": "password",
       "auth": [
           "func1",
           "func2"
@@ -12,7 +14,6 @@
   }]
   ```
 */
-package auth
 
 import (
 	crypto "crypto/md5"

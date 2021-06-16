@@ -4,6 +4,7 @@ go 1.14
 
 require (
 	github.com/go-redis/redis v6.15.9+incompatible
+	github.com/go-redis/redis/v8 v8.10.0
 	github.com/google/uuid v1.2.0
 	github.com/gorilla/mux v1.8.0
 	github.com/jpillora/backoff v1.0.0

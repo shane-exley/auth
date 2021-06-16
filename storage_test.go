@@ -3,7 +3,7 @@
 package auth
 
 import (
-	redis "github.com/go-redis/redis"
+	"github.com/go-redis/redis/v8"
 	mock "github.com/stretchr/testify/mock"
 
 	time "time"
