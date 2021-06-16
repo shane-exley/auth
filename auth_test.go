@@ -114,13 +114,13 @@ func Test_Digest_Auth(t *testing.T) {
 		// returns unathorised and a nonce
 		{"test1", QOPAuth, "", "", func() RedisClient {
 			r := &MockRedisClient{}
-			r.On("Get", mock.Anything).Return(
+			r.On("Get", mock.Anything, mock.Anything).Return(
 				redis.NewStringResult("", errors.New("Test Error")),
 			)
-			r.On("Del", mock.Anything).Return(
+			r.On("Del", mock.Anything, mock.Anything).Return(
 				redis.NewIntResult(int64(0), nil),
 			)
-			r.On("Set", mock.Anything, mock.Anything, mock.Anything).Return(
+			r.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
 				&redis.StatusCmd{},
 			)
 
@@ -131,13 +131,13 @@ func Test_Digest_Auth(t *testing.T) {
 		// returns unathorised and a nonce
 		{"test1", QOPAuthInt, "", "", func() RedisClient {
 			r := &MockRedisClient{}
-			r.On("Get", mock.Anything).Return(
+			r.On("Get", mock.Anything, mock.Anything).Return(
 				redis.NewStringResult("{\"ha1\":\"abc\", \"nc\":\"00000001\"}", nil),
 			)
-			r.On("Del", mock.Anything).Return(
+			r.On("Del", mock.Anything, mock.Anything).Return(
 				redis.NewIntResult(int64(0), nil),
 			)
-			r.On("Set", mock.Anything, mock.Anything, mock.Anything).Return(
+			r.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
 				&redis.StatusCmd{},
 			)
 
@@ -148,13 +148,13 @@ func Test_Digest_Auth(t *testing.T) {
 		// returns unathorised and a nonce
 		{"test1", QOPAuth, "", "", func() RedisClient {
 			r := &MockRedisClient{}
-			r.On("Get", mock.Anything).Return(
+			r.On("Get", mock.Anything, mock.Anything).Return(
 				redis.NewStringResult("{\"ha1\":\"abc\", \"nc\":\"00000001\", \"cnonce\":\"def456hij789\"}", nil),
 			)
-			r.On("Del", mock.Anything).Return(
+			r.On("Del", mock.Anything, mock.Anything).Return(
 				redis.NewIntResult(int64(0), nil),
 			)
-			r.On("Set", mock.Anything, mock.Anything, mock.Anything).Return(
+			r.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
 				&redis.StatusCmd{},
 			)
 
@@ -165,13 +165,13 @@ func Test_Digest_Auth(t *testing.T) {
 		// returns unathorised and a nonce
 		{"test1", QOPAuth, "", "", func() RedisClient {
 			r := &MockRedisClient{}
-			r.On("Get", mock.Anything).Return(
+			r.On("Get", mock.Anything, mock.Anything).Return(
 				redis.NewStringResult("{\"ha1\":\"abc\", \"nc\":\"00000002\"}", nil),
 			)
-			r.On("Del", mock.Anything).Return(
+			r.On("Del", mock.Anything, mock.Anything).Return(
 				redis.NewIntResult(int64(0), nil),
 			)
-			r.On("Set", mock.Anything, mock.Anything, mock.Anything).Return(
+			r.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
 				&redis.StatusCmd{},
 			)
 
@@ -183,13 +183,13 @@ func Test_Digest_Auth(t *testing.T) {
 		// returns unathorised and a nonce
 		{"test1", QOPAuth, "", "", func() RedisClient {
 			r := &MockRedisClient{}
-			r.On("Get", mock.Anything).Return(
+			r.On("Get", mock.Anything, mock.Anything).Return(
 				redis.NewStringResult("{\"ha1\":\"abc\", \"nc\":\"00000001\"}", nil),
 			)
-			r.On("Del", mock.Anything).Return(
+			r.On("Del", mock.Anything, mock.Anything).Return(
 				redis.NewIntResult(int64(0), nil),
 			)
-			r.On("Set", mock.Anything, mock.Anything, mock.Anything).Return(
+			r.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
 				&redis.StatusCmd{},
 			)
 
@@ -201,13 +201,13 @@ func Test_Digest_Auth(t *testing.T) {
 		// returns forbidden response
 		{"test1", QOPAuth, "", "015e3688f2e9a5f26bc6d5245c2de408", func() RedisClient {
 			r := &MockRedisClient{}
-			r.On("Get", mock.Anything).Return(
+			r.On("Get", mock.Anything, mock.Anything).Return(
 				redis.NewStringResult("{\"ha1\":\"abc\", \"nc\":\"00000001\"}", nil),
 			)
-			r.On("Del", mock.Anything).Return(
+			r.On("Del", mock.Anything, mock.Anything).Return(
 				redis.NewIntResult(int64(0), nil),
 			)
-			r.On("Set", mock.Anything, mock.Anything, mock.Anything).Return(
+			r.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
 				&redis.StatusCmd{},
 			)
 
@@ -219,13 +219,13 @@ func Test_Digest_Auth(t *testing.T) {
 		// returns OK response
 		{"test2", QOPAuth, "", "015e3688f2e9a5f26bc6d5245c2de408", func() RedisClient {
 			r := &MockRedisClient{}
-			r.On("Get", mock.Anything).Return(
+			r.On("Get", mock.Anything, mock.Anything).Return(
 				redis.NewStringResult("{\"ha1\":\"abc\", \"nc\":\"00000001\"}", nil),
 			)
-			r.On("Del", mock.Anything).Return(
+			r.On("Del", mock.Anything, mock.Anything).Return(
 				redis.NewIntResult(int64(0), nil),
 			)
-			r.On("Set", mock.Anything, mock.Anything, mock.Anything).Return(
+			r.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
 				&redis.StatusCmd{},
 			)
 
@@ -241,13 +241,13 @@ func Test_Digest_Auth(t *testing.T) {
 		// returns unathorised and a nonce
 		{"test1", QOPAuthInt, "", "", func() RedisClient {
 			r := &MockRedisClient{}
-			r.On("Get", mock.Anything).Return(
+			r.On("Get", mock.Anything, mock.Anything).Return(
 				redis.NewStringResult("", errors.New("Test Error")),
 			)
-			r.On("Del", mock.Anything).Return(
+			r.On("Del", mock.Anything, mock.Anything).Return(
 				redis.NewIntResult(int64(0), nil),
 			)
-			r.On("Set", mock.Anything, mock.Anything, mock.Anything).Return(
+			r.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
 				&redis.StatusCmd{},
 			)
 
@@ -258,13 +258,13 @@ func Test_Digest_Auth(t *testing.T) {
 		// returns unathorised and a nonce
 		{"test1", QOPAuth, "", "", func() RedisClient {
 			r := &MockRedisClient{}
-			r.On("Get", mock.Anything).Return(
+			r.On("Get", mock.Anything, mock.Anything).Return(
 				redis.NewStringResult("", errors.New("Test Error")),
 			)
-			r.On("Del", mock.Anything).Return(
+			r.On("Del", mock.Anything, mock.Anything).Return(
 				redis.NewIntResult(int64(0), nil),
 			)
-			r.On("Set", mock.Anything, mock.Anything, mock.Anything).Return(
+			r.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
 				&redis.StatusCmd{},
 			)
 
@@ -275,13 +275,13 @@ func Test_Digest_Auth(t *testing.T) {
 		// returns unathorised and a nonce
 		{"test1", QOPAuthInt, "", "", func() RedisClient {
 			r := &MockRedisClient{}
-			r.On("Get", mock.Anything).Return(
+			r.On("Get", mock.Anything, mock.Anything).Return(
 				redis.NewStringResult("{\"ha1\":\"abc\", \"nc\":\"00000001\", \"cnonce\":\"def456hij789\"}", nil),
 			)
-			r.On("Del", mock.Anything).Return(
+			r.On("Del", mock.Anything, mock.Anything).Return(
 				redis.NewIntResult(int64(0), nil),
 			)
-			r.On("Set", mock.Anything, mock.Anything, mock.Anything).Return(
+			r.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
 				&redis.StatusCmd{},
 			)
 
@@ -292,13 +292,13 @@ func Test_Digest_Auth(t *testing.T) {
 		// returns unathorised and a nonce
 		{"test1", QOPAuthInt, "", "", func() RedisClient {
 			r := &MockRedisClient{}
-			r.On("Get", mock.Anything).Return(
+			r.On("Get", mock.Anything, mock.Anything).Return(
 				redis.NewStringResult("{\"ha1\":\"abc\", \"nc\":\"00000002\"}", nil),
 			)
-			r.On("Del", mock.Anything).Return(
+			r.On("Del", mock.Anything, mock.Anything).Return(
 				redis.NewIntResult(int64(0), nil),
 			)
-			r.On("Set", mock.Anything, mock.Anything, mock.Anything).Return(
+			r.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
 				&redis.StatusCmd{},
 			)
 
@@ -310,13 +310,13 @@ func Test_Digest_Auth(t *testing.T) {
 		// returns unathorised and a nonce
 		{"test1", QOPAuthInt, "", "", func() RedisClient {
 			r := &MockRedisClient{}
-			r.On("Get", mock.Anything).Return(
+			r.On("Get", mock.Anything, mock.Anything).Return(
 				redis.NewStringResult("{\"ha1\":\"abc\", \"nc\":\"00000001\"}", nil),
 			)
-			r.On("Del", mock.Anything).Return(
+			r.On("Del", mock.Anything, mock.Anything).Return(
 				redis.NewIntResult(int64(0), nil),
 			)
-			r.On("Set", mock.Anything, mock.Anything, mock.Anything).Return(
+			r.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
 				&redis.StatusCmd{},
 			)
 
@@ -329,13 +329,13 @@ func Test_Digest_Auth(t *testing.T) {
 		// returns forbidden response
 		{"test1", QOPAuthInt, "Test 1", "d0584855b7c0511107b260e90d494e9d", func() RedisClient {
 			r := &MockRedisClient{}
-			r.On("Get", mock.Anything).Return(
+			r.On("Get", mock.Anything, mock.Anything).Return(
 				redis.NewStringResult("{\"ha1\":\"abc\", \"nc\":\"00000001\"}", nil),
 			)
-			r.On("Del", mock.Anything).Return(
+			r.On("Del", mock.Anything, mock.Anything).Return(
 				redis.NewIntResult(int64(0), nil),
 			)
-			r.On("Set", mock.Anything, mock.Anything, mock.Anything).Return(
+			r.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
 				&redis.StatusCmd{},
 			)
 
@@ -347,13 +347,13 @@ func Test_Digest_Auth(t *testing.T) {
 		// returns forbidden response
 		{"test1", QOPAuthInt, "Test", "d0584855b7c0511107b260e90d494e9d", func() RedisClient {
 			r := &MockRedisClient{}
-			r.On("Get", mock.Anything).Return(
+			r.On("Get", mock.Anything, mock.Anything).Return(
 				redis.NewStringResult("{\"ha1\":\"abc\", \"nc\":\"00000001\"}", nil),
 			)
-			r.On("Del", mock.Anything).Return(
+			r.On("Del", mock.Anything, mock.Anything).Return(
 				redis.NewIntResult(int64(0), nil),
 			)
-			r.On("Set", mock.Anything, mock.Anything, mock.Anything).Return(
+			r.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
 				&redis.StatusCmd{},
 			)
 
@@ -365,13 +365,13 @@ func Test_Digest_Auth(t *testing.T) {
 		// returns OK response
 		{"test2", QOPAuthInt, "", "2e8c1dd087d73f82e6f5de280a00932d", func() RedisClient {
 			r := &MockRedisClient{}
-			r.On("Get", mock.Anything).Return(
+			r.On("Get", mock.Anything, mock.Anything).Return(
 				redis.NewStringResult("{\"ha1\":\"abc\", \"nc\":\"00000001\"}", nil),
 			)
-			r.On("Del", mock.Anything).Return(
+			r.On("Del", mock.Anything, mock.Anything).Return(
 				redis.NewIntResult(int64(0), nil),
 			)
-			r.On("Set", mock.Anything, mock.Anything, mock.Anything).Return(
+			r.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
 				&redis.StatusCmd{},
 			)
 

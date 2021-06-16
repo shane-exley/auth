@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"time"
 
 	"github.com/go-redis/redis/v8"
@@ -15,15 +16,17 @@ var boff = &backoff.Backoff{
 
 // RedisClient is an interface of redis.Client so that we can mock it in our tests
 type RedisClient interface {
-	Del(keys ...string) *redis.IntCmd
-	Get(key string) *redis.StringCmd
-	Set(key string, value interface{}, expiration time.Duration) *redis.StatusCmd
+	Del(context.Context, ...string) *redis.IntCmd
+	Get(context.Context, string) *redis.StringCmd
+	Set(context.Context, string, interface{}, time.Duration) *redis.StatusCmd
 }
 
 // storageGet retreives a value for the specified key
 func storageGet(storage RedisClient, key string) (res string, err error) {
+	ctx := context.Background()
+
 	for c := 0; c < 3; c++ {
-		res, err = storage.Get(key).Result()
+		res, err = storage.Get(ctx, key).Result()
 
 		if err != nil {
 			time.Sleep(boff.Duration())
@@ -38,8 +41,10 @@ func storageGet(storage RedisClient, key string) (res string, err error) {
 
 // storageSet inserts the store object into the cache for the specified key
 func storageSet(storage RedisClient, key string, obj interface{}, ttl time.Duration) (err error) {
+	ctx := context.Background()
+
 	for c := 0; c < 3; c++ {
-		if err = storage.Set(key, obj, ttl).Err(); err != nil {
+		if err = storage.Set(ctx, key, obj, ttl).Err(); err != nil {
 			time.Sleep(boff.Duration())
 			continue
 		}
@@ -52,8 +57,10 @@ func storageSet(storage RedisClient, key string, obj interface{}, ttl time.Durat
 
 // storageDelete deletes the store object from the cache for a specified key
 func storageDelete(storage RedisClient, key string) (err error) {
+	ctx := context.Background()
+
 	for c := 0; c < 3; c++ {
-		if err = storage.Del(key).Err(); err != nil {
+		if err = storage.Del(ctx, key).Err(); err != nil {
 			time.Sleep(boff.Duration())
 			continue
 		}

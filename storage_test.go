@@ -3,6 +3,8 @@
 package auth
 
 import (
+	"context"
+
 	"github.com/go-redis/redis/v8"
 	mock "github.com/stretchr/testify/mock"
 
@@ -14,19 +16,20 @@ type MockRedisClient struct {
 	mock.Mock
 }
 
-// Del provides a mock function with given fields: keys
-func (_m *MockRedisClient) Del(keys ...string) *redis.IntCmd {
-	_va := make([]interface{}, len(keys))
-	for _i := range keys {
-		_va[_i] = keys[_i]
+// Del provides a mock function with given fields: _a0, _a1
+func (_m *MockRedisClient) Del(_a0 context.Context, _a1 ...string) *redis.IntCmd {
+	_va := make([]interface{}, len(_a1))
+	for _i := range _a1 {
+		_va[_i] = _a1[_i]
 	}
 	var _ca []interface{}
+	_ca = append(_ca, _a0)
 	_ca = append(_ca, _va...)
 	ret := _m.Called(_ca...)
 
 	var r0 *redis.IntCmd
-	if rf, ok := ret.Get(0).(func(...string) *redis.IntCmd); ok {
-		r0 = rf(keys...)
+	if rf, ok := ret.Get(0).(func(context.Context, ...string) *redis.IntCmd); ok {
+		r0 = rf(_a0, _a1...)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*redis.IntCmd)
@@ -36,13 +39,13 @@ func (_m *MockRedisClient) Del(keys ...string) *redis.IntCmd {
 	return r0
 }
 
-// Get provides a mock function with given fields: key
-func (_m *MockRedisClient) Get(key string) *redis.StringCmd {
-	ret := _m.Called(key)
+// Get provides a mock function with given fields: _a0, _a1
+func (_m *MockRedisClient) Get(_a0 context.Context, _a1 string) *redis.StringCmd {
+	ret := _m.Called(_a0, _a1)
 
 	var r0 *redis.StringCmd
-	if rf, ok := ret.Get(0).(func(string) *redis.StringCmd); ok {
-		r0 = rf(key)
+	if rf, ok := ret.Get(0).(func(context.Context, string) *redis.StringCmd); ok {
+		r0 = rf(_a0, _a1)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*redis.StringCmd)
@@ -52,13 +55,13 @@ func (_m *MockRedisClient) Get(key string) *redis.StringCmd {
 	return r0
 }
 
-// Set provides a mock function with given fields: key, value, expiration
-func (_m *MockRedisClient) Set(key string, value interface{}, expiration time.Duration) *redis.StatusCmd {
-	ret := _m.Called(key, value, expiration)
+// Set provides a mock function with given fields: _a0, _a1, _a2, _a3
+func (_m *MockRedisClient) Set(_a0 context.Context, _a1 string, _a2 interface{}, _a3 time.Duration) *redis.StatusCmd {
+	ret := _m.Called(_a0, _a1, _a2, _a3)
 
 	var r0 *redis.StatusCmd
-	if rf, ok := ret.Get(0).(func(string, interface{}, time.Duration) *redis.StatusCmd); ok {
-		r0 = rf(key, value, expiration)
+	if rf, ok := ret.Get(0).(func(context.Context, string, interface{}, time.Duration) *redis.StatusCmd); ok {
+		r0 = rf(_a0, _a1, _a2, _a3)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*redis.StatusCmd)
