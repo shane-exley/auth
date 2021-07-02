@@ -38,11 +38,15 @@ But first we need to instantiate `a` providing our realm to use, our redis cache
 // For Basic
 a, err := auth.New("http://test.com", nil, []byte(`[{ "user":"test","pass":"abc123", "auth": ["test1","test2"]}]`))
 http.Handler("/path", a.Basic(handleSomething))
+http.Handler("/path2", a.Basic(handleSomething))
+http.Handler("/path2/abc", a.Basic(handleSomething))
 
 
 // For Digest
 a, err := auth.New("http://test.com", redis.NewClient(), []byte(`[{ "user":"test","pass":"abc123", "auth": ["test1","test2"]}]`))
 http.Handler("/path", a.Digest(auth.QOPAuth, handleSomething))
+http.Handler("/path2", a.Digest(auth.QOPAuth, handleSomething))
+http.Handler("/path2/abc", a.Digest(auth.QOPAuth, handleSomething))
 ```
 
 ## Configuration
@@ -55,7 +59,8 @@ The configuration for the auth package is a simple JSON setup following the belo
     "pass": "abc123",
     "auth": [
         "path1",
-        "path2"
+        "path2",
+        "path2/*"
     ]
 }]
 ```

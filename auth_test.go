@@ -61,21 +61,32 @@ func Test_Basic(t *testing.T) {
             "auth": [
                 "test"
             ]
+        },
+        {
+            "user": "test3",
+            "pass": "abc123",
+            "auth": [
+                "test",
+                "test/*"
+            ]
         }
     ]`))
 
 	for k, test := range []struct {
-		username, password string
-		code               int
+		route, username, password string
+		code                      int
 	}{
-		{"", "", http.StatusUnauthorized},
-		{"test1", "", http.StatusUnauthorized},
-		{"test1", "abc123", http.StatusForbidden},
-		{"test2", "abc123", http.StatusOK},
+		{"/test", "", "", http.StatusUnauthorized},
+		{"/test", "test1", "", http.StatusUnauthorized},
+		{"/test", "test1", "abc123", http.StatusForbidden},
+		{"/test", "test2", "abc123", http.StatusOK},
+		{"/test/abc", "test2", "abc123", http.StatusForbidden},
+		{"/test", "test3", "abc123", http.StatusOK},
+		{"/test/abc", "test3", "abc123", http.StatusOK},
 	} {
 		t.Run(fmt.Sprintf("#%d", k), func(t *testing.T) {
 			var handler = mux.NewRouter()
-			handler.Handle("/test", auth.Basic(func() http.HandlerFunc {
+			handler.Handle(fmt.Sprintf("%s", test.route), auth.Basic(func() http.HandlerFunc {
 				return func(w http.ResponseWriter, r *http.Request) {
 					w.WriteHeader(http.StatusOK)
 					return
@@ -86,7 +97,7 @@ func Test_Basic(t *testing.T) {
 			defer server.Close()
 
 			var res = httptest.NewRecorder()
-			req, err := http.NewRequest("GET", "/test", nil)
+			req, err := http.NewRequest("GET", fmt.Sprintf("%s", test.route), nil)
 			if err != nil {
 				t.Fatal(err)
 			}

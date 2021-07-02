@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -131,7 +132,7 @@ func (a *Auth) Basic(h http.Handler) http.Handler {
 				if permissions, ok := a.authorisation[user]; ok {
 					if len(permissions) > 0 {
 						for _, permission := range permissions {
-							if permission == r.URL.Path[1:] {
+							if matched, _ := regexp.MatchString(fmt.Sprintf("^%s$", strings.Replace(permission, "*", "[a-zA-Z0-9]{0,}", -1)), r.URL.Path[1:]); matched {
 								h.ServeHTTP(w, r)
 								return
 							}
@@ -297,7 +298,7 @@ func (a *Auth) Digest(qop string, h http.Handler) http.HandlerFunc {
 					if val, ok := a.authorisation[strings.Trim(strings.TrimSpace(p[1]), "\"")]; ok {
 						if len(val) > 0 {
 							for _, perm := range val {
-								if perm == r.URL.Path[1:] {
+								if matched, _ := regexp.MatchString(fmt.Sprintf("^%s$", strings.Replace(perm, "*", "[a-zA-Z0-9]{0,}", -1)), r.URL.Path[1:]); matched {
 									// we add the nonce to the responsewriter for subsequent requests
 									// we have to increment the nonce count
 									nc, err := strconv.Atoi(auth["nc"])
