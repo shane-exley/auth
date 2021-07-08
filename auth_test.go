@@ -83,6 +83,13 @@ func Test_Basic(t *testing.T) {
 		{"/test/abc", "test2", "abc123", http.StatusForbidden},
 		{"/test", "test3", "abc123", http.StatusOK},
 		{"/test/abc", "test3", "abc123", http.StatusOK},
+		{"/test/abc_def", "test3", "abc123", http.StatusOK},         // test underscore
+		{"/test/abc-def", "test3", "abc123", http.StatusOK},         // test dash
+		{"/test/abc~def", "test3", "abc123", http.StatusOK},         // test tilde
+		{"/test/abc_def_ghi", "test3", "abc123", http.StatusOK},     // test underscore
+		{"/test/abc-def-ghi", "test3", "abc123", http.StatusOK},     // test dash
+		{"/test/abc~def~ghi", "test3", "abc123", http.StatusOK},     // test tilde
+		{"/test/abc_def-ghi~jkl", "test3", "abc123", http.StatusOK}, // test all at once
 	} {
 		t.Run(fmt.Sprintf("#%d", k), func(t *testing.T) {
 			var handler = mux.NewRouter()
