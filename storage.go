@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/go-redis/redis/v8"
+	redis "github.com/go-redis/redis/v8"
 	"github.com/jpillora/backoff"
 )
 
@@ -28,7 +28,7 @@ func storageGet(storage RedisClient, key string) (res string, err error) {
 	for c := 0; c < 3; c++ {
 		res, err = storage.Get(ctx, key).Result()
 
-		if err != nil {
+		if err != nil && err.Error() != redis.Nil.Error() {
 			time.Sleep(boff.Duration())
 			continue
 		}

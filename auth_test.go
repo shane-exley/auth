@@ -13,7 +13,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-redis/redis/v8"
+	redis "github.com/go-redis/redis/v8"
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -72,26 +72,40 @@ func Test_Basic(t *testing.T) {
         }
     ]`))
 
-	for k, test := range []struct {
+	for k, test := range map[string]struct {
 		route, username, password string
 		code                      int
 	}{
-		{"/test", "", "", http.StatusUnauthorized},
-		{"/test", "test1", "", http.StatusUnauthorized},
-		{"/test", "test1", "abc123", http.StatusForbidden},
-		{"/test", "test2", "abc123", http.StatusOK},
-		{"/test/abc", "test2", "abc123", http.StatusForbidden},
-		{"/test", "test3", "abc123", http.StatusOK},
-		{"/test/abc", "test3", "abc123", http.StatusOK},
-		{"/test/abc_def", "test3", "abc123", http.StatusOK},         // test underscore
-		{"/test/abc-def", "test3", "abc123", http.StatusOK},         // test dash
-		{"/test/abc~def", "test3", "abc123", http.StatusOK},         // test tilde
-		{"/test/abc_def_ghi", "test3", "abc123", http.StatusOK},     // test underscore
-		{"/test/abc-def-ghi", "test3", "abc123", http.StatusOK},     // test dash
-		{"/test/abc~def~ghi", "test3", "abc123", http.StatusOK},     // test tilde
-		{"/test/abc_def-ghi~jkl", "test3", "abc123", http.StatusOK}, // test all at once
+		"no user or pass": {
+			"/test", "", "", http.StatusUnauthorized},
+		"user, but no pass": {
+			"/test", "test1", "", http.StatusUnauthorized},
+		"user and pass but no authorisation": {
+			"/test", "test1", "abc123", http.StatusForbidden},
+		"all fine": {
+			"/test", "test2", "abc123", http.StatusOK},
+		"bad endpoint": {
+			"/test/abc", "test2", "abc123", http.StatusForbidden},
+		"all fine, next user": {
+			"/test", "test3", "abc123", http.StatusOK},
+		"all fine, next user with extended url": {
+			"/test/abc", "test3", "abc123", http.StatusOK},
+		"all fine, next user with extended url - test underscore": {
+			"/test/abc_def", "test3", "abc123", http.StatusOK},
+		"all fine, next user with extended url - test dash": {
+			"/test/abc-def", "test3", "abc123", http.StatusOK},
+		"all fine, next user with extended url - test tilde": {
+			"/test/abc~def", "test3", "abc123", http.StatusOK},
+		"all fine, next user with extended url - test multi underscore": {
+			"/test/abc_def_ghi", "test3", "abc123", http.StatusOK},
+		"all fine, next user with extended url - test multi dash": {
+			"/test/abc-def-ghi", "test3", "abc123", http.StatusOK},
+		"all fine, next user with extended url - test multi tilde": {
+			"/test/abc~def~ghi", "test3", "abc123", http.StatusOK},
+		"all fine, next user with extended url - test multi all": {
+			"/test/abc_def-ghi~jkl", "test3", "abc123", http.StatusOK},
 	} {
-		t.Run(fmt.Sprintf("#%d", k), func(t *testing.T) {
+		t.Run(fmt.Sprintf("#%s", k), func(t *testing.T) {
 			var handler = mux.NewRouter()
 			handler.Handle(fmt.Sprintf("%s", test.route), auth.Basic(func() http.HandlerFunc {
 				return func(w http.ResponseWriter, r *http.Request) {
@@ -117,286 +131,323 @@ func Test_Basic(t *testing.T) {
 	}
 }
 
+func Benchmark_BasicAuth(b *testing.B) {
+	auth, _ := New("test_app", func() RedisClient {
+		r := &MockRedisClient{}
+		r.On("Get", mock.Anything, mock.Anything).Return(
+			redis.NewStringResult("{\"nc\":\"00000001\"}", nil),
+		)
+		r.On("Del", mock.Anything, mock.Anything).Return(
+			redis.NewIntResult(int64(0), nil),
+		)
+		r.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
+			&redis.StatusCmd{},
+		)
+
+		return r
+	}(), []byte(`[
+		{
+			"user": "benchmark_test",
+			"pass": "abc123",
+			"auth": [
+				"test"
+			]
+		}
+	]`))
+
+	var handler = mux.NewRouter()
+	handler.Handle("/test", auth.Basic(func() http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+	}())).Methods("GET")
+
+	var server = httptest.NewServer(handler)
+	defer server.Close()
+
+	for n := 0; n < b.N; n++ {
+		var res = httptest.NewRecorder()
+		req, err := http.NewRequest("GET", "/test", nil)
+		if err != nil {
+			b.Fatal(err)
+		}
+		req.SetBasicAuth("benchmark_test", "abc123")
+		handler.ServeHTTP(res, req)
+	}
+}
+
 func Test_Digest_Auth(t *testing.T) {
-	for k, test := range []struct {
+	for k, test := range map[string]struct {
 		username, qop, payload, response string
 		storage                          RedisClient
 		code                             int
 	}{
-		// // AUTH
-		//
-		// // no username present
-		{"", QOPAuth, "", "", &MockRedisClient{}, http.StatusUnauthorized},
+		"AUTH - no username present": {
+			"", QOPAuth, "", "", func() RedisClient {
+				r := &MockRedisClient{}
+				r.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
+					&redis.StatusCmd{},
+				)
 
-		// username present but upon redis get, an error is returned
-		// returns unathorised and a nonce
-		{"test1", QOPAuth, "", "", func() RedisClient {
-			r := &MockRedisClient{}
-			r.On("Get", mock.Anything, mock.Anything).Return(
-				redis.NewStringResult("", errors.New("Test Error")),
-			)
-			r.On("Del", mock.Anything, mock.Anything).Return(
-				redis.NewIntResult(int64(0), nil),
-			)
-			r.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
-				&redis.StatusCmd{},
-			)
+				return r
+			}(), http.StatusUnauthorized},
 
-			return r
-		}(), http.StatusUnauthorized},
+		"AUTH - username present, no password for this user": {
+			"test fail", QOPAuth, "", "", func() RedisClient {
+				r := &MockRedisClient{}
+				r.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
+					&redis.StatusCmd{},
+				)
 
-		// username present but the given qop doesnt match expected for this auth
-		// returns unathorised and a nonce
-		{"test1", QOPAuthInt, "", "", func() RedisClient {
-			r := &MockRedisClient{}
-			r.On("Get", mock.Anything, mock.Anything).Return(
-				redis.NewStringResult("{\"ha1\":\"abc\", \"nc\":\"00000001\"}", nil),
-			)
-			r.On("Del", mock.Anything, mock.Anything).Return(
-				redis.NewIntResult(int64(0), nil),
-			)
-			r.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
-				&redis.StatusCmd{},
-			)
+				return r
+			}(), http.StatusUnauthorized},
 
-			return r
-		}(), http.StatusUnauthorized},
+		"AUTH - username present but upon redis get, an error is returned": {
+			"test1", QOPAuth, "", "", func() RedisClient {
+				r := &MockRedisClient{}
+				r.On("Get", mock.Anything, mock.Anything).Return(
+					redis.NewStringResult("", errors.New("Test Error")),
+				)
+				r.On("Del", mock.Anything, mock.Anything).Return(
+					redis.NewIntResult(int64(0), nil),
+				)
+				r.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
+					&redis.StatusCmd{},
+				)
 
-		// username present but the given cnonce doesnt match expected for this auth
-		// returns unathorised and a nonce
-		{"test1", QOPAuth, "", "", func() RedisClient {
-			r := &MockRedisClient{}
-			r.On("Get", mock.Anything, mock.Anything).Return(
-				redis.NewStringResult("{\"ha1\":\"abc\", \"nc\":\"00000001\", \"cnonce\":\"def456hij789\"}", nil),
-			)
-			r.On("Del", mock.Anything, mock.Anything).Return(
-				redis.NewIntResult(int64(0), nil),
-			)
-			r.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
-				&redis.StatusCmd{},
-			)
+				return r
+			}(), http.StatusUnauthorized},
 
-			return r
-		}(), http.StatusUnauthorized},
+		"AUTH - username present but the given qop doesnt match expected for this auth": {
+			"test1", QOPAuthInt, "", "", func() RedisClient {
+				r := &MockRedisClient{}
+				r.On("Get", mock.Anything, mock.Anything).Return(
+					redis.NewStringResult("{\"ha1\":\"abc\", \"nc\":\"00000001\"}", nil),
+				)
+				r.On("Del", mock.Anything, mock.Anything).Return(
+					redis.NewIntResult(int64(0), nil),
+				)
+				r.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
+					&redis.StatusCmd{},
+				)
 
-		// username present but the given nc doesnt match expected for this auth
-		// returns unathorised and a nonce
-		{"test1", QOPAuth, "", "", func() RedisClient {
-			r := &MockRedisClient{}
-			r.On("Get", mock.Anything, mock.Anything).Return(
-				redis.NewStringResult("{\"ha1\":\"abc\", \"nc\":\"00000002\"}", nil),
-			)
-			r.On("Del", mock.Anything, mock.Anything).Return(
-				redis.NewIntResult(int64(0), nil),
-			)
-			r.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
-				&redis.StatusCmd{},
-			)
+				return r
+			}(), http.StatusUnauthorized},
 
-			return r
-		}(), http.StatusUnauthorized},
+		"AUTH - username present but the given cnonce doesnt match expected for this auth": {
+			"test1", QOPAuth, "", "", func() RedisClient {
+				r := &MockRedisClient{}
+				r.On("Get", mock.Anything, mock.Anything).Return(
+					redis.NewStringResult("{\"ha1\":\"abc\", \"nc\":\"00000001\", \"cnonce\":\"def456hij789\"}", nil),
+				)
+				r.On("Del", mock.Anything, mock.Anything).Return(
+					redis.NewIntResult(int64(0), nil),
+				)
+				r.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
+					&redis.StatusCmd{},
+				)
 
-		// username present and redis entry found for the request but it does not
-		// match the provided response, could be tampered with (man in the middle)
-		// returns unathorised and a nonce
-		{"test1", QOPAuth, "", "", func() RedisClient {
-			r := &MockRedisClient{}
-			r.On("Get", mock.Anything, mock.Anything).Return(
-				redis.NewStringResult("{\"ha1\":\"abc\", \"nc\":\"00000001\"}", nil),
-			)
-			r.On("Del", mock.Anything, mock.Anything).Return(
-				redis.NewIntResult(int64(0), nil),
-			)
-			r.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
-				&redis.StatusCmd{},
-			)
+				return r
+			}(), http.StatusUnauthorized},
 
-			return r
-		}(), http.StatusUnauthorized},
+		"AUTH - username present but the given nc doesnt match expected for this auth": {
+			"test1", QOPAuth, "", "", func() RedisClient {
+				r := &MockRedisClient{}
+				r.On("Get", mock.Anything, mock.Anything).Return(
+					redis.NewStringResult("{\"ha1\":\"abc\", \"nc\":\"00000002\"}", nil),
+				)
+				r.On("Del", mock.Anything, mock.Anything).Return(
+					redis.NewIntResult(int64(0), nil),
+				)
+				r.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
+					&redis.StatusCmd{},
+				)
 
-		// username present and redis entry found for the request and it does match
-		// the provided response. The user in this case does not have authorisation
-		// returns forbidden response
-		{"test1", QOPAuth, "", "015e3688f2e9a5f26bc6d5245c2de408", func() RedisClient {
-			r := &MockRedisClient{}
-			r.On("Get", mock.Anything, mock.Anything).Return(
-				redis.NewStringResult("{\"ha1\":\"abc\", \"nc\":\"00000001\"}", nil),
-			)
-			r.On("Del", mock.Anything, mock.Anything).Return(
-				redis.NewIntResult(int64(0), nil),
-			)
-			r.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
-				&redis.StatusCmd{},
-			)
+				return r
+			}(), http.StatusUnauthorized},
 
-			return r
-		}(), http.StatusForbidden},
+		"AUTH - username present and redis entry found for the request but it does not match the provided response, could be tampered with (man in the middle)": {
+			"test1", QOPAuth, "", "", func() RedisClient {
+				r := &MockRedisClient{}
+				r.On("Get", mock.Anything, mock.Anything).Return(
+					redis.NewStringResult("{\"nc\":\"00000001\"}", nil),
+				)
+				r.On("Del", mock.Anything, mock.Anything).Return(
+					redis.NewIntResult(int64(0), nil),
+				)
+				r.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
+					&redis.StatusCmd{},
+				)
 
-		// username present and redis entry found for the request and it does match
-		// the provided respose. The user in this case does have authorisation
-		// returns OK response
-		{"test2", QOPAuth, "", "015e3688f2e9a5f26bc6d5245c2de408", func() RedisClient {
-			r := &MockRedisClient{}
-			r.On("Get", mock.Anything, mock.Anything).Return(
-				redis.NewStringResult("{\"ha1\":\"abc\", \"nc\":\"00000001\"}", nil),
-			)
-			r.On("Del", mock.Anything, mock.Anything).Return(
-				redis.NewIntResult(int64(0), nil),
-			)
-			r.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
-				&redis.StatusCmd{},
-			)
+				return r
+			}(), http.StatusUnauthorized},
 
-			return r
-		}(), http.StatusOK},
+		"AUTH - username present and redis entry found for the request and it does match the provided response. The user in this case does not have authorisation": {
+			"test1", QOPAuth, "", "cd8108bc1be87a703f40bc7213ba7b24", func() RedisClient {
+				r := &MockRedisClient{}
+				r.On("Get", mock.Anything, mock.Anything).Return(
+					redis.NewStringResult("{\"nc\":\"00000001\"}", nil),
+				)
+				r.On("Del", mock.Anything, mock.Anything).Return(
+					redis.NewIntResult(int64(0), nil),
+				)
+				r.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
+					&redis.StatusCmd{},
+				)
 
-		// AUTH-INT
+				return r
+			}(), http.StatusForbidden},
 
-		// no username present
-		{"", QOPAuthInt, "", "", &MockRedisClient{}, http.StatusUnauthorized},
+		"AUTH - username present and redis entry found for the request and it does match the provided response. The user in this case does have authorisation": {
+			"test2", QOPAuth, "", "e22f199b150e2db4a87df2ac78341add", func() RedisClient {
+				r := &MockRedisClient{}
+				r.On("Get", mock.Anything, mock.Anything).Return(
+					redis.NewStringResult("{\"nc\":\"00000001\"}", nil),
+				)
+				r.On("Del", mock.Anything, mock.Anything).Return(
+					redis.NewIntResult(int64(0), nil),
+				)
+				r.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
+					&redis.StatusCmd{},
+				)
 
-		// username present but upon redis get, an error is returned
-		// returns unathorised and a nonce
-		{"test1", QOPAuthInt, "", "", func() RedisClient {
-			r := &MockRedisClient{}
-			r.On("Get", mock.Anything, mock.Anything).Return(
-				redis.NewStringResult("", errors.New("Test Error")),
-			)
-			r.On("Del", mock.Anything, mock.Anything).Return(
-				redis.NewIntResult(int64(0), nil),
-			)
-			r.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
-				&redis.StatusCmd{},
-			)
+				return r
+			}(), http.StatusOK},
 
-			return r
-		}(), http.StatusUnauthorized},
+		"AUTH-INT - no username present": {
+			"", QOPAuthInt, "", "",
+			func() RedisClient {
+				r := &MockRedisClient{}
+				r.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
+					&redis.StatusCmd{},
+				)
+				return r
+			}(), http.StatusUnauthorized},
 
-		// username present but the given qop doesnt match expected for this auth
-		// returns unathorised and a nonce
-		{"test1", QOPAuth, "", "", func() RedisClient {
-			r := &MockRedisClient{}
-			r.On("Get", mock.Anything, mock.Anything).Return(
-				redis.NewStringResult("", errors.New("Test Error")),
-			)
-			r.On("Del", mock.Anything, mock.Anything).Return(
-				redis.NewIntResult(int64(0), nil),
-			)
-			r.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
-				&redis.StatusCmd{},
-			)
+		"AUTH-INT - username present, no password for this user": {
+			"test fail", QOPAuthInt, "", "",
+			func() RedisClient {
+				r := &MockRedisClient{}
+				r.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
+					&redis.StatusCmd{},
+				)
+				return r
+			}(), http.StatusUnauthorized},
 
-			return r
-		}(), http.StatusUnauthorized},
+		"AUTH-INT - username present but upon redis get, an error is returned": {
+			"test1", QOPAuthInt, "", "", func() RedisClient {
+				r := &MockRedisClient{}
+				r.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
+					&redis.StatusCmd{},
+				)
+				r.On("Get", mock.Anything, mock.Anything).Return(
+					redis.NewStringResult("", errors.New("Test Error")),
+				)
+				r.On("Del", mock.Anything, mock.Anything).Return(
+					redis.NewIntResult(int64(0), nil),
+				)
 
-		// username present but the given cnonce doesnt match expected for this auth
-		// returns unathorised and a nonce
-		{"test1", QOPAuthInt, "", "", func() RedisClient {
-			r := &MockRedisClient{}
-			r.On("Get", mock.Anything, mock.Anything).Return(
-				redis.NewStringResult("{\"ha1\":\"abc\", \"nc\":\"00000001\", \"cnonce\":\"def456hij789\"}", nil),
-			)
-			r.On("Del", mock.Anything, mock.Anything).Return(
-				redis.NewIntResult(int64(0), nil),
-			)
-			r.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
-				&redis.StatusCmd{},
-			)
+				return r
+			}(), http.StatusUnauthorized},
 
-			return r
-		}(), http.StatusUnauthorized},
+		"AUTH-INT - username present but the given qop doesnt match expected for this auth": {
+			"test1", QOPAuth, "", "", func() RedisClient {
+				r := &MockRedisClient{}
+				r.On("Get", mock.Anything, mock.Anything).Return(
+					redis.NewStringResult("", errors.New("Test Error")),
+				)
+				r.On("Del", mock.Anything, mock.Anything).Return(
+					redis.NewIntResult(int64(0), nil),
+				)
+				r.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
+					&redis.StatusCmd{},
+				)
 
-		// username present but the given nc doesnt match expected for this auth
-		// returns unathorised and a nonce
-		{"test1", QOPAuthInt, "", "", func() RedisClient {
-			r := &MockRedisClient{}
-			r.On("Get", mock.Anything, mock.Anything).Return(
-				redis.NewStringResult("{\"ha1\":\"abc\", \"nc\":\"00000002\"}", nil),
-			)
-			r.On("Del", mock.Anything, mock.Anything).Return(
-				redis.NewIntResult(int64(0), nil),
-			)
-			r.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
-				&redis.StatusCmd{},
-			)
+				return r
+			}(), http.StatusUnauthorized},
 
-			return r
-		}(), http.StatusUnauthorized},
+		"AUTH-INT - username present but the given cnonce doesnt match expected for this auth": {
+			"test1", QOPAuthInt, "", "", func() RedisClient {
+				r := &MockRedisClient{}
+				r.On("Get", mock.Anything, mock.Anything).Return(
+					redis.NewStringResult("{\"nc\":\"00000001\", \"cnonce\":\"def456hij789\"}", nil),
+				)
+				r.On("Del", mock.Anything, mock.Anything).Return(
+					redis.NewIntResult(int64(0), nil),
+				)
+				r.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
+					&redis.StatusCmd{},
+				)
 
-		// username present and redis entry found for the request but it does not
-		// match the provided response, could be tampered with (man in the middle)
-		// returns unathorised and a nonce
-		{"test1", QOPAuthInt, "", "", func() RedisClient {
-			r := &MockRedisClient{}
-			r.On("Get", mock.Anything, mock.Anything).Return(
-				redis.NewStringResult("{\"ha1\":\"abc\", \"nc\":\"00000001\"}", nil),
-			)
-			r.On("Del", mock.Anything, mock.Anything).Return(
-				redis.NewIntResult(int64(0), nil),
-			)
-			r.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
-				&redis.StatusCmd{},
-			)
+				return r
+			}(), http.StatusUnauthorized},
 
-			return r
-		}(), http.StatusUnauthorized},
+		"AUTH-INT - username present but the given nc doesnt match expected for this auth": {
+			"test1", QOPAuthInt, "", "", func() RedisClient {
+				r := &MockRedisClient{}
+				r.On("Get", mock.Anything, mock.Anything).Return(
+					redis.NewStringResult("{\"nc\":\"00000002\"}", nil),
+				)
+				r.On("Del", mock.Anything, mock.Anything).Return(
+					redis.NewIntResult(int64(0), nil),
+				)
+				r.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
+					&redis.StatusCmd{},
+				)
 
-		// username present and redis entry found for the request and it does match
-		// the provided response because the body doesnt match. The user in this
-		// case does not have authorisation
-		// returns forbidden response
-		{"test1", QOPAuthInt, "Test 1", "d0584855b7c0511107b260e90d494e9d", func() RedisClient {
-			r := &MockRedisClient{}
-			r.On("Get", mock.Anything, mock.Anything).Return(
-				redis.NewStringResult("{\"ha1\":\"abc\", \"nc\":\"00000001\"}", nil),
-			)
-			r.On("Del", mock.Anything, mock.Anything).Return(
-				redis.NewIntResult(int64(0), nil),
-			)
-			r.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
-				&redis.StatusCmd{},
-			)
+				return r
+			}(), http.StatusUnauthorized},
 
-			return r
-		}(), http.StatusUnauthorized},
+		"AUTH-INT - username present and redis entry found for the request but it does not match the provided response, could be tampered with (man in the middle)": {
+			"test1", QOPAuthInt, "", "", func() RedisClient {
+				r := &MockRedisClient{}
+				r.On("Get", mock.Anything, mock.Anything).Return(
+					redis.NewStringResult("{\"nc\":\"00000001\"}", nil),
+				)
+				r.On("Del", mock.Anything, mock.Anything).Return(
+					redis.NewIntResult(int64(0), nil),
+				)
+				r.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
+					&redis.StatusCmd{},
+				)
 
-		// username present and redis entry found for the request and it does match
-		// the provided response. The user in this case does not have authorisation
-		// returns forbidden response
-		{"test1", QOPAuthInt, "Test", "d0584855b7c0511107b260e90d494e9d", func() RedisClient {
-			r := &MockRedisClient{}
-			r.On("Get", mock.Anything, mock.Anything).Return(
-				redis.NewStringResult("{\"ha1\":\"abc\", \"nc\":\"00000001\"}", nil),
-			)
-			r.On("Del", mock.Anything, mock.Anything).Return(
-				redis.NewIntResult(int64(0), nil),
-			)
-			r.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
-				&redis.StatusCmd{},
-			)
+				return r
+			}(), http.StatusUnauthorized},
 
-			return r
-		}(), http.StatusForbidden},
+		"AUTH-INT - username present and redis entry found for the request and it does match the provided response. The user in this case does not have authorisation": {
+			"test1", QOPAuthInt, "Test 1", "d0584855b7c0511107b260e90d494e9d", func() RedisClient {
+				r := &MockRedisClient{}
+				r.On("Get", mock.Anything, mock.Anything).Return(
+					redis.NewStringResult("{\"nc\":\"00000001\"}", nil),
+				)
+				r.On("Del", mock.Anything, mock.Anything).Return(
+					redis.NewIntResult(int64(0), nil),
+				)
+				r.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
+					&redis.StatusCmd{},
+				)
 
-		// username present and redis entry found for the request and it does match
-		// the provided respose. The user in this case does have authorisation
-		// returns OK response
-		{"test2", QOPAuthInt, "", "2e8c1dd087d73f82e6f5de280a00932d", func() RedisClient {
-			r := &MockRedisClient{}
-			r.On("Get", mock.Anything, mock.Anything).Return(
-				redis.NewStringResult("{\"ha1\":\"abc\", \"nc\":\"00000001\"}", nil),
-			)
-			r.On("Del", mock.Anything, mock.Anything).Return(
-				redis.NewIntResult(int64(0), nil),
-			)
-			r.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
-				&redis.StatusCmd{},
-			)
+				return r
+			}(), http.StatusUnauthorized},
 
-			return r
-		}(), http.StatusOK},
+		"AUTH-INT - username present and redis entry found for the request and it does match the provided response. The user in this case does have authorisation": {
+			"test2", QOPAuthInt, "", "eeab130bfee2768d88cfac2a9afc160e", func() RedisClient {
+				r := &MockRedisClient{}
+				r.On("Get", mock.Anything, mock.Anything).Return(
+					redis.NewStringResult("{\"nc\":\"00000001\"}", nil),
+				)
+				r.On("Del", mock.Anything, mock.Anything).Return(
+					redis.NewIntResult(int64(0), nil),
+				)
+				r.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
+					&redis.StatusCmd{},
+				)
+
+				return r
+			}(), http.StatusOK},
 	} {
-		t.Run(fmt.Sprintf("#%d", k), func(t *testing.T) {
+		t.Run(fmt.Sprintf("#%s", k), func(t *testing.T) {
 			auth, _ := New("test_app", test.storage, []byte(`[
 		        {
 		            "user": "test1",
@@ -458,5 +509,53 @@ func Test_md5(t *testing.T) {
 		t.Run(fmt.Sprintf("#%d", k), func(t *testing.T) {
 			assert.Equal(t, test.exp, md5(test.in))
 		})
+	}
+}
+
+func Benchmark_DigestAuth(b *testing.B) {
+	auth, _ := New("test_app", func() RedisClient {
+		r := &MockRedisClient{}
+		r.On("Get", mock.Anything, mock.Anything).Return(
+			redis.NewStringResult("{\"nc\":\"00000001\"}", nil),
+		)
+		r.On("Del", mock.Anything, mock.Anything).Return(
+			redis.NewIntResult(int64(0), nil),
+		)
+		r.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
+			&redis.StatusCmd{},
+		)
+
+		return r
+	}(), []byte(`[
+		{
+			"user": "benchmark_test",
+			"pass": "abc123",
+			"auth": [
+				"test"
+			]
+		}
+	]`))
+
+	var handler = mux.NewRouter()
+	handler.Handle("/test", auth.Digest("auth", func() http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+	}())).Methods("GET")
+
+	var server = httptest.NewServer(handler)
+	defer server.Close()
+
+	for n := 0; n < b.N; n++ {
+		var res = httptest.NewRecorder()
+		req, err := http.NewRequest("GET", "/test", nil)
+		if err != nil {
+			b.Fatal(err)
+		}
+
+		req.Header.Set("Authorization", fmt.Sprintf(`Digest username="%s", realm="%s", nonce="%s", uri="%s", cnonce="%s", nc="%v", qop="%s", response="%s"`,
+			"benchmark_test", "test_app", "ABC-123-DEF-456", "/test?foo=bar", "abc123def456", "00000001", "auth", "1929bc29bb3ac560435821d030baef6c"))
+		handler.ServeHTTP(res, req)
 	}
 }

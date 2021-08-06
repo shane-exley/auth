@@ -66,3 +66,16 @@ The configuration for the auth package is a simple JSON setup following the belo
 ```
 
 The auth relates to the path/endpoint we are allowing access for that particular user.
+
+## Testing
+
+```
+// unit
+go test ./...
+
+```
+
+```
+// benchmark
+go test -bench=.
+```

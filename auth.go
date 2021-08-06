@@ -158,140 +158,137 @@ var md5 = func(str string) string {
 func (a *Auth) Digest(qop string, h http.Handler) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var newnonce string
+
 		headers := strings.Split(strings.Replace(r.Header.Get("Authorization"), "Digest", "", 1), ",")
 
-		if len(headers) == 0 {
-			// fail authentication
-			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
-		var auth = make(map[string]string, len(headers))
-		for _, header := range headers {
-			p := strings.Split(header, "=")
-			if len(p) == 2 {
-				// strip both whitespace and double quotes
-				auth[strings.TrimSpace(p[0])] = strings.Trim(strings.TrimSpace(p[1]), "\"")
-			}
-		}
-		if len(auth) == 0 {
-			// fail authentication
-			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
-		// lets ensure we have a username
-		username, ok := auth["username"]
-		if !ok {
-			// fail authentication
-			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
+		authenticated, auth, stale := func() (bool, map[string]string, bool) {
+			var auth = make(map[string]string, len(headers))
 
-		// does the user have permission?
-		password, ok := a.authentication[username]
-		if !ok {
-			// fail authentication
-			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
-		var stale = false
-		//now we have to validate the nonce
-		d, err := storageGetAndDelete(a.storage, auth["nonce"])
-		if err == nil {
-			if d != "" {
-				var digest digestAuth
-				if err = json.Unmarshal([]byte(d), &digest); err != nil {
-					w.WriteHeader(http.StatusInternalServerError)
-					return
+			if len(headers) == 0 {
+				return false, auth, false
+			}
+
+			for _, header := range headers {
+				p := strings.Split(header, "=")
+				if len(p) == 2 {
+					// strip both whitespace and double quotes
+					auth[strings.TrimSpace(p[0])] = strings.Trim(strings.TrimSpace(p[1]), "\"")
+				}
+			}
+			if len(auth) == 0 {
+				return false, auth, false
+			}
+
+			// lets ensure we have a username
+			username, ok := auth["username"]
+			if !ok || username == "" {
+				return false, auth, false
+			}
+			// does the user have permission?
+			password, ok := a.authentication[username]
+			if !ok || password == "" {
+				return false, auth, false
+			}
+
+			//now we have to validate the nonce
+			d, err := storageGetAndDelete(a.storage, auth["nonce"])
+			if err != nil || d == "" {
+				return false, auth, false
+			}
+
+			var digest digestAuth
+			if err = json.Unmarshal([]byte(d), &digest); err != nil {
+				return false, auth, false
+			}
+
+			if qop != auth["qop"] || digest.CNonce == auth["cnonce"] || digest.NC != auth["nc"] {
+				return false, auth, true
+			}
+
+			switch qop {
+			case QOPAuthInt:
+				// in order to validate the authentication, the given response (consumer) should match our generated
+				// 1) HA1 = md5(username:realm:password)
+				// 2) HA2 = md5(method:URI:md5(body))
+				// 3) response = md5(HA1:Nonce:NonceCount:ClientNonce:qop:HA2)
+				b, err := ioutil.ReadAll(r.Body)
+				if err != nil {
+					return false, auth, false
+				}
+				r.Body.Close()
+
+				if md5(strings.Join([]string{
+					md5(strings.Join([]string{
+						username,
+						a.app,
+						password,
+					}, ":")),
+					auth["nonce"],
+					auth["nc"],
+					auth["cnonce"],
+					qop,
+					md5(strings.Join([]string{
+						r.Method,
+						r.URL.RequestURI(),
+						md5(string(b)),
+					}, ":")),
+				}, ":")) == auth["response"] {
+					return true, auth, false
 				}
 
-				if qop == auth["qop"] && digest.CNonce != auth["cnonce"] && digest.NC == auth["nc"] {
-					switch qop {
-					case QOPAuthInt:
-						// in order to validate the authentication, the given response (consumer) should match our generated
-						// 1) HA1 = md5(username:realm:password)
-						// 2) HA2 = md5(method:URI:md5(body))
-						// 3) response = md5(HA1:Nonce:NonceCount:ClientNonce:qop:HA2)
-						b, err := ioutil.ReadAll(r.Body)
-						if err != nil {
-							w.WriteHeader(http.StatusBadRequest)
-							return
-						}
-						r.Body.Close()
-
-						if md5(strings.Join([]string{
-							digest.HA1,
-							auth["nonce"],
-							auth["nc"],
-							auth["cnonce"],
-							qop,
-							md5(strings.Join([]string{
-								r.Method,
-								r.URL.RequestURI(),
-								md5(string(b)),
-							}, ":")),
-						}, ":")) == auth["response"] {
-							// we pass authentication and move on to authorisation
-							goto AUTHORISE
-						}
-
-					default:
-						// in order to validate the authentication, the given response (consumer) should match our generated
-						// 1) HA1 = md5(username:realm:password)
-						// 2) HA2 = md5(method:URI)
-						// 3) response = md5(HA1:Nonce:NonceCount:ClientNonce:qop:HA2)
-						if md5(strings.Join([]string{
-							digest.HA1,
-							auth["nonce"],
-							auth["nc"],
-							auth["cnonce"],
-							qop,
-							md5(strings.Join([]string{
-								r.Method,
-								r.URL.RequestURI(),
-							}, ":")),
-						}, ":")) == auth["response"] {
-							// we pass authentication and move on to authorisation
-							goto AUTHORISE
-						}
-					}
+			default:
+				// in order to validate the authentication, the given response (consumer) should match our generated
+				// 1) HA1 = md5(username:realm:password)
+				// 2) HA2 = md5(method:URI)
+				// 3) response = md5(HA1:Nonce:NonceCount:ClientNonce:qop:HA2)
+				if md5(strings.Join([]string{
+					md5(strings.Join([]string{
+						username,
+						a.app,
+						password,
+					}, ":")),
+					auth["nonce"],
+					auth["nc"],
+					auth["cnonce"],
+					qop,
+					md5(strings.Join([]string{
+						r.Method,
+						r.URL.RequestURI(),
+					}, ":")),
+				}, ":")) == auth["response"] {
+					return true, auth, false
 				}
-			} else {
-				// mark as stale nonce
-				stale = true
 			}
+
+			return false, auth, false
+		}()
+
+		if !authenticated {
+			newnonce = guuid.New().String()
+			// this can be done concurrent with return, we use the nonce as the key and the client ID as the value
+			go func(nonce string, obj interface{}) {
+				storageSet(a.storage, nonce, obj, NonceTTL)
+				return
+			}(newnonce, &digestAuth{
+				NC: ncStart,
+			})
+
+			w.Header().Set("WWW-Authenticate", func() string {
+				var ret = fmt.Sprintf("Digest realm=\"%s\", nonce=\"%s\", qop=\"%s\", algorithm=\"MD5\", nc=\"%s\"", a.app, newnonce, qop, ncStart)
+				if stale {
+					strings.Join([]string{
+						ret,
+						fmt.Sprintf("stale=%v", stale == true),
+					}, " ")
+				}
+				return ret
+			}())
+			// fail authentication
+			w.WriteHeader(http.StatusUnauthorized)
+			return
 		}
 
-		// a nonce is not provided so we return unauthorised but with a generated nonce for subsequent request
-		newnonce = guuid.New().String()
-		// this can be done concurrent with return, we use the nonce as the key and the client ID as the value
-		go func(nonce string, obj interface{}) {
-			storageSet(a.storage, nonce, obj, NonceTTL)
-			return
-		}(newnonce, &digestAuth{
-			HA1: md5(strings.Join([]string{
-				username,
-				a.app,
-				password,
-			}, ":")),
-			NC: ncStart,
-		})
-
-		w.Header().Set("WWW-Authenticate", func() string {
-			var ret = fmt.Sprintf("Digest realm=\"%s\", nonce=\"%s\", qop=\"%s\", algorithm=\"MD5\", nc=\"%s\"", a.app, newnonce, qop, ncStart)
-			if stale {
-				strings.Join([]string{
-					ret,
-					"stale=TRUE",
-				}, " ")
-			}
-			return ret
-		}())
-		// fail authentication
-		w.WriteHeader(http.StatusUnauthorized)
-		return
-
-	AUTHORISE:
-		if len(headers) > 0 {
+		if !func() bool {
 			for _, header := range headers {
 				p := strings.Split(header, "=")
 				if strings.TrimSpace(p[0]) == "username" {
@@ -299,40 +296,37 @@ func (a *Auth) Digest(qop string, h http.Handler) http.HandlerFunc {
 						if len(val) > 0 {
 							for _, perm := range val {
 								if matched, _ := regexp.MatchString(fmt.Sprintf("^%s$", strings.Replace(perm, "*", "[a-zA-Z0-9_~-]{1,}", -1)), r.URL.Path[1:]); matched {
-									// we add the nonce to the responsewriter for subsequent requests
-									// we have to increment the nonce count
-									nc, err := strconv.Atoi(auth["nc"])
-									if err != nil {
-										w.WriteHeader(http.StatusBadRequest)
-										return
-									}
-									nc++
-
-									go func(nonce string, obj interface{}) {
-										storageSet(a.storage, nonce, obj, NonceTTL)
-										return
-									}(auth["nonce"], &digestAuth{
-										HA1: md5(strings.Join([]string{
-											username,
-											a.app,
-											password,
-										}, ":")),
-										NC:     fmt.Sprintf("%08d", nc),
-										CNonce: auth["cnonce"],
-									})
-									w.Header().Set("WWW-Authenticate", fmt.Sprintf("Digest realm=\"%s\", nonce=\"%s\", qop=\"%s\", algorithm=\"MD5\", nc=\"%s\"", a.app, auth["nonce"], qop, fmt.Sprintf("%08d", nc)))
-
-									h.ServeHTTP(w, r)
-									return
+									return true
 								}
 							}
 						}
 					}
 				}
 			}
+
+			return false
+
+		}() {
+			// fail authorisation
+			w.WriteHeader(http.StatusForbidden)
+			return
 		}
-		// fail authorisation
-		w.WriteHeader(http.StatusForbidden)
+
+		// we add the nonce to the responsewriter for subsequent requests
+		// we have to increment the nonce count
+		nc, _ := strconv.Atoi(auth["nc"])
+		nc++
+
+		go func(nonce string, obj interface{}) {
+			storageSet(a.storage, nonce, obj, NonceTTL)
+			return
+		}(auth["nonce"], &digestAuth{
+			NC:     fmt.Sprintf("%08d", nc),
+			CNonce: auth["cnonce"],
+		})
+		w.Header().Set("WWW-Authenticate", fmt.Sprintf("Digest realm=\"%s\", nonce=\"%s\", qop=\"%s\", algorithm=\"MD5\", nc=\"%s\"", a.app, auth["nonce"], qop, fmt.Sprintf("%08d", nc)))
+
+		h.ServeHTTP(w, r)
 		return
 	})
 }
