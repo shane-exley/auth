@@ -265,13 +265,12 @@ func (a *Auth) Digest(qop string, h http.Handler) http.HandlerFunc {
 
 		if !authenticated {
 			newnonce = guuid.New().String()
-			// this can be done concurrent with return, we use the nonce as the key and the client ID as the value
-			go func(nonce string, obj interface{}) {
-				storageSet(a.storage, nonce, obj, NonceTTL)
-				return
-			}(newnonce, &digestAuth{
+			if err := storageSet(a.storage, newnonce, &digestAuth{
 				NC: ncStart,
-			})
+			}, NonceTTL); err != nil {
+				w.WriteHeader(http.StatusFailedDependency)
+				return
+			}
 
 			w.Header().Set("WWW-Authenticate", func() string {
 				var ret = fmt.Sprintf("Digest realm=\"%s\", nonce=\"%s\", qop=\"%s\", algorithm=\"MD5\", nc=\"%s\"", a.app, newnonce, qop, ncStart)
@@ -317,13 +316,14 @@ func (a *Auth) Digest(qop string, h http.Handler) http.HandlerFunc {
 		nc, _ := strconv.Atoi(auth["nc"])
 		nc++
 
-		go func(nonce string, obj interface{}) {
-			storageSet(a.storage, nonce, obj, NonceTTL)
-			return
-		}(auth["nonce"], &digestAuth{
+		if err := storageSet(a.storage, auth["nonce"], &digestAuth{
 			NC:     fmt.Sprintf("%08d", nc),
 			CNonce: auth["cnonce"],
-		})
+		}, NonceTTL); err != nil {
+			w.WriteHeader(http.StatusFailedDependency)
+			return
+		}
+
 		w.Header().Set("WWW-Authenticate", fmt.Sprintf("Digest realm=\"%s\", nonce=\"%s\", qop=\"%s\", algorithm=\"MD5\", nc=\"%s\"", a.app, auth["nonce"], qop, fmt.Sprintf("%08d", nc)))
 
 		h.ServeHTTP(w, r)
