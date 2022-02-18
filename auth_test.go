@@ -1,3 +1,4 @@
+//go:build !release
 // +build !release
 
 package auth
@@ -25,7 +26,7 @@ func Test_MarshalBinary(t *testing.T) {
 	assert.Nil(t, enc.Encode(&digestAuth{}))
 }
 
-func Test_NewAuth(t *testing.T) {
+func Test_NewAuth_Byte(t *testing.T) {
 	var a *Auth
 	var err error
 
@@ -41,6 +42,31 @@ func Test_NewAuth(t *testing.T) {
             "test2"
         ]
     }]`))
+	assert.Nil(t, err)
+	assert.Equal(t, 1, len(a.authentication))
+	assert.Equal(t, "abc123", a.authentication["test"])
+	assert.Equal(t, 1, len(a.authorisation))
+	assert.Equal(t, 2, len(a.authorisation["test"]))
+}
+
+func Test_NewAuth_Authentication(t *testing.T) {
+	var a *Auth
+	var err error
+
+	a, err = New("test_app", &MockRedisClient{}, []Authentication{})
+	assert.Nil(t, err)
+	assert.Equal(t, "test_app", a.app)
+
+	a, err = New("test_app", &MockRedisClient{}, []Authentication{
+		Authentication{
+			User: "test",
+			Pass: "abc123",
+			Auth: []string{
+				"test1",
+				"test2",
+			},
+		},
+	})
 	assert.Nil(t, err)
 	assert.Equal(t, 1, len(a.authentication))
 	assert.Equal(t, "abc123", a.authentication["test"])

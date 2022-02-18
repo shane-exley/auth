@@ -55,8 +55,9 @@ type digestAuth struct {
 
 // Authentication defines the auth structure
 type Authentication struct {
-	User string `json:"user"`
-	Pass string `json:"pass"`
+	User string   `json:"user"`
+	Pass string   `json:"pass"`
+	Auth []string `json:"auth"`
 }
 
 // UnmarshalBinary converts bytes to storage object
@@ -78,13 +79,24 @@ type Auth struct {
 }
 
 // New instantiates an Auth instance
-func New(app string, storage RedisClient, auth []byte) (*Auth, error) {
+func New(app string, storage RedisClient, auth interface{}) (*Auth, error) {
 	a := &Auth{
 		app:     app,
 		storage: storage,
 	}
 
-	err := json.Unmarshal(auth, a)
+	var err error
+	switch auth.(type) {
+	case []Authentication:
+		b, err := json.Marshal(auth.([]Authentication))
+		if err != nil {
+			return a, err
+		}
+		err = json.Unmarshal(b, a)
+
+	default:
+		err = json.Unmarshal(auth.([]byte), a)
+	}
 
 	return a, err
 }
@@ -97,24 +109,10 @@ func (a *Auth) UnmarshalJSON(data []byte) error {
 	}
 
 	a.authentication = make(map[string]string)
+	a.authorisation = make(map[string][]string)
 	if len(authentication) > 0 {
 		for _, val := range authentication {
 			(a.authentication)[val.User] = val.Pass
-		}
-	}
-
-	var authorisation []struct {
-		User string   `json:"user"`
-		Auth []string `json:"auth"`
-	}
-
-	if err := json.Unmarshal(data, &authorisation); err != nil {
-		return err
-	}
-
-	a.authorisation = make(map[string][]string)
-	if len(authorisation) > 0 {
-		for _, val := range authorisation {
 			(a.authorisation)[val.User] = val.Auth
 		}
 	}
