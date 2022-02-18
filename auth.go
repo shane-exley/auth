@@ -53,6 +53,12 @@ type digestAuth struct {
 	CNonce string `json:"cnonse"`
 }
 
+// Authentication defines the auth structure
+type Authentication struct {
+	User string `json:"user"`
+	Pass string `json:"pass"`
+}
+
 // UnmarshalBinary converts bytes to storage object
 func (d *digestAuth) UnmarshalBinary(data []byte) error {
 	return json.Unmarshal(data, d)
@@ -85,11 +91,7 @@ func New(app string, storage RedisClient, auth []byte) (*Auth, error) {
 
 // UnmarshalJSON provides custom unmarshal of JSON
 func (a *Auth) UnmarshalJSON(data []byte) error {
-	var authentication []struct {
-		User string `json:"user"`
-		Pass string `json:"pass"`
-	}
-
+	var authentication []Authentication
 	if err := json.Unmarshal(data, &authentication); err != nil {
 		return err
 	}
