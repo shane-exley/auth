@@ -78,19 +78,19 @@ func Test_Basic(t *testing.T) {
 	auth, _ := New("test_app", &MockRedisClient{}, []byte(`[
         {
             "user": "test1",
-            "pass": "abc123",
+            "pass": "7987df9d7d6295274858924ab328cc55",
             "auth": []
         },
         {
             "user": "test2",
-            "pass": "abc123",
+            "pass": "ec41d671cf2be1b2f2adda930ea3e45b",
             "auth": [
                 "test"
             ]
         },
         {
             "user": "test3",
-            "pass": "abc123",
+            "pass": "ecfc0c892bd36db48c4c5cc5869bb9c6",
             "auth": [
                 "test",
                 "test/*"
@@ -174,7 +174,7 @@ func Benchmark_BasicAuth(b *testing.B) {
 	}(), []byte(`[
 		{
 			"user": "benchmark_test",
-			"pass": "abc123",
+			"pass": "2057bb77b3f8a9d31e1a380596873c87",
 			"auth": [
 				"test"
 			]
@@ -477,12 +477,12 @@ func Test_Digest_Auth(t *testing.T) {
 			auth, _ := New("test_app", test.storage, []byte(`[
 		        {
 		            "user": "test1",
-		            "pass": "abc123",
+		            "pass": "7987df9d7d6295274858924ab328cc55",
 		            "auth": []
 		        },
 		        {
 		            "user": "test2",
-		            "pass": "abc123",
+		            "pass": "ec41d671cf2be1b2f2adda930ea3e45b",
 		            "auth": [
 		                "test"
 		            ]
@@ -555,7 +555,7 @@ func Benchmark_DigestAuth(b *testing.B) {
 	}(), []byte(`[
 		{
 			"user": "benchmark_test",
-			"pass": "abc123",
+			"pass": "2057bb77b3f8a9d31e1a380596873c87",
 			"auth": [
 				"test"
 			]

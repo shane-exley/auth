@@ -3,7 +3,8 @@ module github.com/shane-exley/auth
 go 1.17
 
 require (
-	github.com/go-redis/redis/v8 v8.11.4
+	github.com/LK4D4/trylock v0.0.0-20191027065348-ff7e133a5c54
+	github.com/go-redis/redis/v8 v8.11.5
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/mux v1.8.0
 	github.com/jpillora/backoff v1.0.0

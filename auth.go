@@ -26,6 +26,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/LK4D4/trylock"
 	guuid "github.com/google/uuid"
 )
 
@@ -45,6 +46,9 @@ const (
 // NonceTTL defines to the time of a nonce to live, a var instead of const so that
 // it can be overwritten
 var NonceTTL time.Duration = 30 * time.Second
+
+// lock is used to allow concurrency but the auth needs to be locked for certain events
+var lock = &trylock.Mutex{}
 
 // digestAuth is a storage object
 type digestAuth struct {
@@ -88,9 +92,9 @@ func New(app string, storage RedisClient, auth interface{}) (*Auth, error) {
 	var err error
 	switch auth.(type) {
 	case []Authentication:
-		b, err := json.Marshal(auth.([]Authentication))
-		if err != nil {
-			return a, err
+		b, e := json.Marshal(auth.([]Authentication))
+		if e != nil {
+			return a, e
 		}
 		err = json.Unmarshal(b, a)
 
@@ -124,10 +128,14 @@ func (a *Auth) UnmarshalJSON(data []byte) error {
 func (a *Auth) Basic(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		user, pass, _ := r.BasicAuth()
-
 		// checking authentication
 		if p, ok := a.authentication[user]; ok {
-			if p == pass {
+
+			if p == md5(strings.Join([]string{
+				user,
+				a.app,
+				pass,
+			}, ":")) {
 				// check authorisation
 				if permissions, ok := a.authorisation[user]; ok {
 					if len(permissions) > 0 {
@@ -185,8 +193,8 @@ func (a *Auth) Digest(qop string, h http.Handler) http.HandlerFunc {
 				return false, auth, false
 			}
 			// does the user have permission?
-			password, ok := a.authentication[username]
-			if !ok || password == "" {
+			ha1, ok := a.authentication[username]
+			if !ok || ha1 == "" {
 				return false, auth, false
 			}
 
@@ -218,11 +226,7 @@ func (a *Auth) Digest(qop string, h http.Handler) http.HandlerFunc {
 				r.Body.Close()
 
 				if md5(strings.Join([]string{
-					md5(strings.Join([]string{
-						username,
-						a.app,
-						password,
-					}, ":")),
+					ha1,
 					auth["nonce"],
 					auth["nc"],
 					auth["cnonce"],
@@ -242,11 +246,7 @@ func (a *Auth) Digest(qop string, h http.Handler) http.HandlerFunc {
 				// 2) HA2 = md5(method:URI)
 				// 3) response = md5(HA1:Nonce:NonceCount:ClientNonce:qop:HA2)
 				if md5(strings.Join([]string{
-					md5(strings.Join([]string{
-						username,
-						a.app,
-						password,
-					}, ":")),
+					ha1,
 					auth["nonce"],
 					auth["nc"],
 					auth["cnonce"],
@@ -264,12 +264,20 @@ func (a *Auth) Digest(qop string, h http.Handler) http.HandlerFunc {
 		}()
 
 		if !authenticated {
-			newnonce = guuid.New().String()
-			if err := storageSet(a.storage, newnonce, &digestAuth{
-				NC: ncStart,
-			}, NonceTTL); err != nil {
-				w.WriteHeader(http.StatusFailedDependency)
-				return
+			// this is important to allow the lock to have locked and avoid race condition
+			time.Sleep(boff.Duration())
+
+			if lock.TryLock() {
+				newnonce = guuid.New().String()
+				if err := storageSet(a.storage, newnonce, &digestAuth{
+					NC: ncStart,
+				}, NonceTTL); err != nil {
+					w.WriteHeader(http.StatusFailedDependency)
+					return
+				}
+			} else {
+				// this is important to allow the lock to have completeted on any concurrent requests
+				time.Sleep(1 * time.Second)
 			}
 
 			w.Header().Set("WWW-Authenticate", func() string {
