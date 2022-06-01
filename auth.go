@@ -43,6 +43,8 @@ const (
 	ncStart string = "00000001"
 )
 
+const permissionsReg string = "[a-zA-Z0-9_~:-]{1,}"
+
 // NonceTTL defines to the time of a nonce to live, a var instead of const so that
 // it can be overwritten
 var NonceTTL time.Duration = 30 * time.Second
@@ -59,9 +61,10 @@ type digestAuth struct {
 
 // Authentication defines the auth structure
 type Authentication struct {
-	User string   `json:"user"`
-	Pass string   `json:"pass"`
-	Auth []string `json:"auth"`
+	User  string   `json:"user,omitempty"`
+	Token string   `json:"token,omitempty"`
+	Pass  string   `json:"pass,omitempty"`
+	Auth  []string `json:"auth"`
 }
 
 // UnmarshalBinary converts bytes to storage object
@@ -112,16 +115,42 @@ func (a *Auth) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	a.authentication = make(map[string]string)
-	a.authorisation = make(map[string][]string)
+	a.authentication = make(map[string]string, len(authentication))
+	a.authorisation = make(map[string][]string, len(authentication))
 	if len(authentication) > 0 {
 		for _, val := range authentication {
-			(a.authentication)[val.User] = val.Pass
-			(a.authorisation)[val.User] = val.Auth
+			if val.User != "" && val.Pass != "" {
+				(a.authentication)[val.User] = val.Pass
+				(a.authorisation)[val.User] = val.Auth
+			} else if val.Token != "" {
+				(a.authorisation)[val.Token] = val.Auth
+			}
 		}
 	}
 
 	return nil
+}
+
+// Token performs bearer token authetication
+func (a *Auth) Token(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if permissions, ok := a.authorisation[strings.TrimSpace(strings.Replace(r.Header.Get("Authorization"), "Bearer", "", 1))]; ok {
+			if len(permissions) > 0 {
+				for _, permission := range permissions {
+					if matched, _ := regexp.MatchString(fmt.Sprintf("^%s$", strings.Replace(permission, "*", permissionsReg, -1)), r.URL.Path[1:]); matched {
+						h.ServeHTTP(w, r)
+						return
+					}
+				}
+			}
+			// fail authorisation
+			http.Error(w, "", http.StatusForbidden)
+			return
+		}
+		// fail authentication
+		http.Error(w, "", http.StatusUnauthorized)
+		return
+	})
 }
 
 // Basic performs basic authetication
@@ -140,7 +169,7 @@ func (a *Auth) Basic(h http.Handler) http.Handler {
 				if permissions, ok := a.authorisation[user]; ok {
 					if len(permissions) > 0 {
 						for _, permission := range permissions {
-							if matched, _ := regexp.MatchString(fmt.Sprintf("^%s$", strings.Replace(permission, "*", "[a-zA-Z0-9_~-]{1,}", -1)), r.URL.Path[1:]); matched {
+							if matched, _ := regexp.MatchString(fmt.Sprintf("^%s$", strings.Replace(permission, "*", permissionsReg, -1)), r.URL.Path[1:]); matched {
 								h.ServeHTTP(w, r)
 								return
 							}
@@ -302,7 +331,7 @@ func (a *Auth) Digest(qop string, h http.Handler) http.HandlerFunc {
 					if val, ok := a.authorisation[strings.Trim(strings.TrimSpace(p[1]), "\"")]; ok {
 						if len(val) > 0 {
 							for _, perm := range val {
-								if matched, _ := regexp.MatchString(fmt.Sprintf("^%s$", strings.Replace(perm, "*", "[a-zA-Z0-9_~-]{1,}", -1)), r.URL.Path[1:]); matched {
+								if matched, _ := regexp.MatchString(fmt.Sprintf("^%s$", strings.Replace(perm, "*", permissionsReg, -1)), r.URL.Path[1:]); matched {
 									return true
 								}
 							}
