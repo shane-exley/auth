@@ -47,6 +47,17 @@ a, err := auth.New("http://test.com", nil, []auth.Authentication{
     },
 })
 
+// or / the same as
+
+a, err := auth.New("http://test.com", nil, []byte(`[{
+    "token": "testtoken",
+    "auth": [
+        "path1",
+        "path2",
+        "path2/*"
+    ]
+}]`))
+
 http.Handler("/path", a.Token(handleSomething))
 http.Handler("/path2", a.Token(handleSomething))
 http.Handler("/path2/abc", a.Token(handleSomething))
@@ -64,6 +75,18 @@ a, err := auth.New("http://test.com", nil, []auth.Authentication{
     },
 })
 
+// or / the same as
+
+a, err := auth.New("http://test.com", nil, []byte(`[{
+    "user": "test",
+    "pass": "abc123",
+    "auth": [
+        "path1",
+        "path2",
+        "path2/*"
+    ]
+}]`))
+
 http.Handler("/path", a.Basic(handleSomething))
 http.Handler("/path2", a.Basic(handleSomething))
 http.Handler("/path2/abc", a.Basic(handleSomething))
@@ -80,6 +103,18 @@ a, err := auth.New("http://test.com", redis.NewClient(), []auth.Authentication{
         },
     },
 })
+
+// or / the same as
+
+a, err := auth.New("http://test.com", redis.NewClient(), []byte(`[{
+    "user": "test",
+    "pass": "abc123",
+    "auth": [
+        "path1",
+        "path2",
+        "path2/*"
+    ]
+}]`))
 
 http.Handler("/path", a.Digest(auth.QOPAuth, handleSomething))
 http.Handler("/path2", a.Digest(auth.QOPAuth, handleSomething))
