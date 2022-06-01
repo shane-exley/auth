@@ -74,6 +74,88 @@ func Test_NewAuth_Authentication(t *testing.T) {
 	assert.Equal(t, 2, len(a.authorisation["test"]))
 }
 
+func Test_Token(t *testing.T) {
+	auth, _ := New("test_app", &MockRedisClient{}, []byte(`[
+        {
+            "token": "test1",
+            "auth": []
+        },
+        {
+            "token": "test2",
+            "auth": [
+                "test"
+            ]
+        },
+        {
+            "token": "test3",
+            "auth": [
+                "test",
+                "test/*"
+            ]
+        }
+    ]`))
+
+	for k, test := range map[string]struct {
+		route, token string
+		code         int
+	}{
+		"no token": {
+			"/test", "", http.StatusUnauthorized},
+		"token non registered": {
+			"/test", "test0", http.StatusUnauthorized},
+		"token but no authorisation": {
+			"/test", "test1", http.StatusForbidden},
+		"token but but not authorised": {
+			"/tester", "test2", http.StatusForbidden},
+		"all fine": {
+			"/test", "test2", http.StatusOK},
+		"bad endpoint": {
+			"/test/abc", "test2", http.StatusForbidden},
+		"all fine, next user": {
+			"/test", "test3", http.StatusOK},
+		"all fine, next user with extended url": {
+			"/test/abc", "test3", http.StatusOK},
+		"all fine, next user with extended url - test underscore": {
+			"/test/abc_def", "test3", http.StatusOK},
+		"all fine, next user with extended url - test dash": {
+			"/test/abc-def", "test3", http.StatusOK},
+		"all fine, next user with extended url - test tilde": {
+			"/test/abc~def", "test3", http.StatusOK},
+		"all fine, next user with extended url - test multi underscore": {
+			"/test/abc_def_ghi", "test3", http.StatusOK},
+		"all fine, next user with extended url - test multi dash": {
+			"/test/abc-def-ghi", "test3", http.StatusOK},
+		"all fine, next user with extended url - test multi tilde": {
+			"/test/abc~def~ghi", "test3", http.StatusOK},
+		"all fine, next user with extended url - test multi all": {
+			"/test/abc_def-ghi~jkl", "test3", http.StatusOK},
+	} {
+		t.Run(fmt.Sprintf("#%s", k), func(t *testing.T) {
+			var handler = mux.NewRouter()
+			handler.Handle(fmt.Sprintf("%s", test.route), auth.Token(func() http.HandlerFunc {
+				return func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(http.StatusOK)
+					return
+				}
+			}())).Methods("GET")
+
+			var server = httptest.NewServer(handler)
+			defer server.Close()
+
+			var res = httptest.NewRecorder()
+			req, err := http.NewRequest("GET", fmt.Sprintf("%s", test.route), nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", test.token))
+
+			handler.ServeHTTP(res, req)
+
+			assert.Equal(t, test.code, res.Code)
+		})
+	}
+}
+
 func Test_Basic(t *testing.T) {
 	auth, _ := New("test_app", &MockRedisClient{}, []byte(`[
         {
