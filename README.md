@@ -35,15 +35,52 @@ http.Handler("/path", a.Basic(handleSomething))
 But first we need to instantiate `a` providing our realm to use, our redis cache storage instance (for digest) and the [configuration](#Configuration).
 
 ```
+// For Token
+a, err := auth.New("http://test.com", nil, []auth.Authentication{
+    auth.Authentication{
+        Token: "testtoken",
+        Auth: []string{
+            "path",
+            "path2",
+            "path2/*",
+        },
+    },
+})
+
+http.Handler("/path", a.Token(handleSomething))
+http.Handler("/path2", a.Token(handleSomething))
+http.Handler("/path2/abc", a.Token(handleSomething))
+
 // For Basic
-a, err := auth.New("http://test.com", nil, []byte(`[{ "user":"test","pass":"abc123", "auth": ["test1","test2"]}]`))
+a, err := auth.New("http://test.com", nil, []auth.Authentication{
+    auth.Authentication{
+        User: "test",
+        Pass: "abc123",
+        Auth: []string{
+            "path",
+            "path2",
+            "path2/*",
+        },
+    },
+})
+
 http.Handler("/path", a.Basic(handleSomething))
 http.Handler("/path2", a.Basic(handleSomething))
 http.Handler("/path2/abc", a.Basic(handleSomething))
 
-
 // For Digest
-a, err := auth.New("http://test.com", redis.NewClient(), []byte(`[{ "user":"test","pass":"abc123", "auth": ["test1","test2"]}]`))
+a, err := auth.New("http://test.com", redis.NewClient(), []auth.Authentication{
+    auth.Authentication{
+        User: "test",
+        Pass: "abc123",
+        Auth: []string{
+            "path",
+            "path2",
+            "path2/*",
+        },
+    },
+})
+
 http.Handler("/path", a.Digest(auth.QOPAuth, handleSomething))
 http.Handler("/path2", a.Digest(auth.QOPAuth, handleSomething))
 http.Handler("/path2/abc", a.Digest(auth.QOPAuth, handleSomething))
