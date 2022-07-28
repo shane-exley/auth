@@ -129,6 +129,8 @@ func Test_Token(t *testing.T) {
 			"/test/abc~def~ghi", "test3", http.StatusOK},
 		"all fine, next user with extended url - test multi all": {
 			"/test/abc_def-ghi~jkl", "test3", http.StatusOK},
+		"all fine, next user with extended url - test additional query vars": {
+			"/test/abc/def", "test3", http.StatusOK},
 	} {
 		t.Run(fmt.Sprintf("#%s", k), func(t *testing.T) {
 			var handler = mux.NewRouter()
@@ -212,6 +214,8 @@ func Test_Basic(t *testing.T) {
 			"/test/abc~def~ghi", "test3", "abc123", http.StatusOK},
 		"all fine, next user with extended url - test multi all": {
 			"/test/abc_def-ghi~jkl", "test3", "abc123", http.StatusOK},
+		"all fine, next user with extended url - test additional query vars": {
+			"/test/abc/def", "test3", "abc123", http.StatusOK},
 	} {
 		t.Run(fmt.Sprintf("#%s", k), func(t *testing.T) {
 			var handler = mux.NewRouter()
