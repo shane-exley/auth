@@ -18,6 +18,7 @@ package auth
 import (
 	crypto "crypto/md5"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -100,9 +101,10 @@ func New(app string, storage RedisClient, auth interface{}) (*Auth, error) {
 			return a, e
 		}
 		err = json.Unmarshal(b, a)
-
-	default:
+	case []byte:
 		err = json.Unmarshal(auth.([]byte), a)
+	default:
+		err = errors.New("Unexpected interface type for auth")
 	}
 
 	return a, err
