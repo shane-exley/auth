@@ -101,8 +101,8 @@ func New(app string, storage RedisClient, auth interface{}) (*Auth, error) {
 			return a, e
 		}
 		err = json.Unmarshal(b, a)
-	case []byte:
-		err = json.Unmarshal(auth.([]byte), a)
+	case []uint8:
+		err = json.Unmarshal(auth.([]uint8), a)
 	default:
 		err = errors.New("Unexpected interface type for auth")
 	}
