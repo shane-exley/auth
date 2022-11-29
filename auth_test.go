@@ -40,7 +40,11 @@ func Test_NewAuth_Byte(t *testing.T) {
         "auth": [
             "test1",
             "test2"
-        ]
+        ],
+        "rate": {
+            "burst": 1,
+            "limit": 1000
+        }
     }]`))
 	assert.Nil(t, err)
 	assert.Equal(t, 1, len(a.authentication))
@@ -64,6 +68,10 @@ func Test_NewAuth_Authentication(t *testing.T) {
 			Auth: []string{
 				"test1",
 				"test2",
+			},
+			Rate: AuthenticationRate{
+				Burst: 1,
+				Limit: 2,
 			},
 		},
 	})

@@ -44,6 +44,10 @@ a, err := auth.New("http://test.com", nil, []auth.Authentication{
             "path2",
             "path2/*",
         },
+        Rate: auth.AuthenticationRate{
+            Burst: 1,
+            Limit: 2,
+        },
     },
 })
 
@@ -55,7 +59,11 @@ a, err := auth.New("http://test.com", nil, []byte(`[{
         "path1",
         "path2",
         "path2/*"
-    ]
+    ],
+    "rate": {
+        "burst": 1,
+        "limit": 2
+    }
 }]`))
 
 http.Handler("/path", a.Token(handleSomething))
@@ -72,6 +80,10 @@ a, err := auth.New("http://test.com", nil, []auth.Authentication{
             "path2",
             "path2/*",
         },
+        Rate: auth.AuthenticationRate{
+            Burst: 1,
+            Limit: 2,
+        },
     },
 })
 
@@ -84,7 +96,11 @@ a, err := auth.New("http://test.com", nil, []byte(`[{
         "path1",
         "path2",
         "path2/*"
-    ]
+    ],
+    "rate": {
+        "burst": 1,
+        "limit": 2
+    }
 }]`))
 
 http.Handler("/path", a.Basic(handleSomething))
@@ -101,6 +117,10 @@ a, err := auth.New("http://test.com", redis.NewClient(), []auth.Authentication{
             "path2",
             "path2/*",
         },
+        Rate: auth.AuthenticationRate{
+            Burst: 1,
+            Limit: 2,
+        },
     },
 })
 
@@ -113,7 +133,11 @@ a, err := auth.New("http://test.com", redis.NewClient(), []byte(`[{
         "path1",
         "path2",
         "path2/*"
-    ]
+    ],
+    "rate": {
+        "burst": 1,
+        "limit": 2
+    }
 }]`))
 
 http.Handler("/path", a.Digest(auth.QOPAuth, handleSomething))
@@ -133,7 +157,11 @@ The configuration for the auth package is a simple JSON setup following the belo
         "path1",
         "path2",
         "path2/*"
-    ]
+    ],
+    "rate": {
+        "burst": 1,
+        "limit": 2
+    }
 }]
 ```
 

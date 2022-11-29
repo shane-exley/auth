@@ -10,7 +10,11 @@ package auth
       "auth": [
           "func1",
           "func2"
-      ]
+      ],
+      "rate": {
+        "burst": 1,
+        "limit": 300, // this is the per second restrictions
+      }
   }]
   ```
 */
@@ -25,10 +29,12 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/LK4D4/trylock"
 	guuid "github.com/google/uuid"
+	"golang.org/x/time/rate"
 )
 
 const (
@@ -62,10 +68,17 @@ type digestAuth struct {
 
 // Authentication defines the auth structure
 type Authentication struct {
-	User  string   `json:"user,omitempty"`
-	Token string   `json:"token,omitempty"`
-	Pass  string   `json:"pass,omitempty"`
-	Auth  []string `json:"auth"`
+	User  string             `json:"user,omitempty"`
+	Token string             `json:"token,omitempty"`
+	Pass  string             `json:"pass,omitempty"`
+	Auth  []string           `json:"auth"`
+	Rate  AuthenticationRate `json:"rate,omitempty"`
+}
+
+// AuthenticationRate defines the auth rate structure
+type AuthenticationRate struct {
+	Burst rate.Limit `json:"burst"`
+	Limit int        `json:"limit"`
 }
 
 // UnmarshalBinary converts bytes to storage object
@@ -84,6 +97,10 @@ type Auth struct {
 	storage        RedisClient
 	authentication map[string]string   // map[testuser]testpass
 	authorisation  map[string][]string // map[testuser][]string{"func1","func2"}
+
+	// rate limiter
+	mu sync.Mutex
+	li *rate.Limiter
 }
 
 // New instantiates an Auth instance
@@ -127,10 +144,28 @@ func (a *Auth) UnmarshalJSON(data []byte) error {
 			} else if val.Token != "" {
 				(a.authorisation)[val.Token] = val.Auth
 			}
+			// what about rate limiting, we expect but do not require two attributes
+			// because we set defaults (which is a non limit 10000, 10000):
+			// - rate.limit
+			// - rate.burst
+			if val.Rate.Burst > 0 && val.Rate.Limit > 0 {
+				a.li = rate.NewLimiter(val.Rate.Burst, val.Rate.Limit)
+			} else {
+				a.li = rate.NewLimiter(10000, 10000)
+			}
 		}
 	}
 
 	return nil
+}
+
+// Allow checks whether the auth user has or has not exceeded predefined
+// allowance of requests per second
+func (a *Auth) Allow() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	return a.li.Allow()
 }
 
 // Token performs bearer token authetication
@@ -140,17 +175,19 @@ func (a *Auth) Token(h http.Handler) http.Handler {
 			if len(permissions) > 0 {
 				for _, permission := range permissions {
 					if matched, _ := regexp.MatchString(fmt.Sprintf("^%s$", strings.Replace(permission, "*", permissionsReg, -1)), r.URL.Path[1:]); matched {
+						if !a.Allow() {
+							w.WriteHeader(http.StatusTooManyRequests)
+							return
+						}
 						h.ServeHTTP(w, r)
 						return
 					}
 				}
 			}
-			// fail authorisation
-			http.Error(w, "", http.StatusForbidden)
+			w.WriteHeader(http.StatusForbidden)
 			return
 		}
-		// fail authentication
-		http.Error(w, "", http.StatusUnauthorized)
+		w.WriteHeader(http.StatusUnauthorized)
 		return
 	})
 }
@@ -172,19 +209,21 @@ func (a *Auth) Basic(h http.Handler) http.Handler {
 					if len(permissions) > 0 {
 						for _, permission := range permissions {
 							if matched, _ := regexp.MatchString(fmt.Sprintf("^%s$", strings.Replace(permission, "*", permissionsReg, -1)), r.URL.Path[1:]); matched {
+								if !a.Allow() {
+									w.WriteHeader(http.StatusTooManyRequests)
+									return
+								}
 								h.ServeHTTP(w, r)
 								return
 							}
 						}
 					}
 				}
-				// fail authorisation
-				http.Error(w, "", http.StatusForbidden)
+				w.WriteHeader(http.StatusForbidden)
 				return
 			}
 		}
-		// fail authentication
-		http.Error(w, "", http.StatusUnauthorized)
+		w.WriteHeader(http.StatusUnauthorized)
 		return
 	})
 }
@@ -321,7 +360,6 @@ func (a *Auth) Digest(qop string, h http.Handler) http.HandlerFunc {
 				}
 				return ret
 			}())
-			// fail authentication
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
@@ -365,6 +403,10 @@ func (a *Auth) Digest(qop string, h http.Handler) http.HandlerFunc {
 
 		w.Header().Set("WWW-Authenticate", fmt.Sprintf("Digest realm=\"%s\", nonce=\"%s\", qop=\"%s\", algorithm=\"MD5\", nc=\"%s\"", a.app, auth["nonce"], qop, fmt.Sprintf("%08d", nc)))
 
+		if !a.Allow() {
+			w.WriteHeader(http.StatusTooManyRequests)
+			return
+		}
 		h.ServeHTTP(w, r)
 		return
 	})

@@ -9,7 +9,7 @@ import (
 )
 
 var boff = &backoff.Backoff{
-	Min:    2 * time.Microsecond,
+	Min:    0 * time.Microsecond,
 	Max:    100 * time.Microsecond,
 	Jitter: true,
 }
@@ -23,10 +23,8 @@ type RedisClient interface {
 
 // storageGet retreives a value for the specified key
 func storageGet(storage RedisClient, key string) (res string, err error) {
-	ctx := context.Background()
-
 	for c := 0; c < 3; c++ {
-		res, err = storage.Get(ctx, key).Result()
+		res, err = storage.Get(context.Background(), key).Result()
 
 		if err != nil && err.Error() != redis.Nil.Error() {
 			time.Sleep(boff.Duration())
@@ -41,10 +39,8 @@ func storageGet(storage RedisClient, key string) (res string, err error) {
 
 // storageSet inserts the store object into the cache for the specified key
 func storageSet(storage RedisClient, key string, obj interface{}, ttl time.Duration) (err error) {
-	ctx := context.Background()
-
 	for c := 0; c < 3; c++ {
-		if err = storage.Set(ctx, key, obj, ttl).Err(); err != nil {
+		if err = storage.Set(context.Background(), key, obj, ttl).Err(); err != nil {
 			time.Sleep(boff.Duration())
 			continue
 		}
@@ -57,10 +53,8 @@ func storageSet(storage RedisClient, key string, obj interface{}, ttl time.Durat
 
 // storageDelete deletes the store object from the cache for a specified key
 func storageDelete(storage RedisClient, key string) (err error) {
-	ctx := context.Background()
-
 	for c := 0; c < 3; c++ {
-		if err = storage.Del(ctx, key).Err(); err != nil {
+		if err = storage.Del(context.Background(), key).Err(); err != nil {
 			time.Sleep(boff.Duration())
 			continue
 		}
