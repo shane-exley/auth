@@ -139,6 +139,8 @@ func Test_Token(t *testing.T) {
 			"/test/abc_def-ghi~jkl", "test3", http.StatusOK},
 		"all fine, next user with extended url - test additional query vars": {
 			"/test/abc/def", "test3", http.StatusOK},
+		"all fine, next user with extended url - test additional query vars that are URL encoded": {
+			"/test/abc/person@example.co.uk", "test3", http.StatusOK},
 	} {
 		t.Run(fmt.Sprintf("#%s", k), func(t *testing.T) {
 			var handler = mux.NewRouter()
@@ -147,13 +149,13 @@ func Test_Token(t *testing.T) {
 					w.WriteHeader(http.StatusOK)
 					return
 				}
-			}())).Methods("GET")
+			}())).Methods(http.MethodGet)
 
 			var server = httptest.NewServer(handler)
 			defer server.Close()
 
 			var res = httptest.NewRecorder()
-			req, err := http.NewRequest("GET", fmt.Sprintf("%s", test.route), nil)
+			req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s", test.route), nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -224,6 +226,8 @@ func Test_Basic(t *testing.T) {
 			"/test/abc_def-ghi~jkl", "test3", "abc123", http.StatusOK},
 		"all fine, next user with extended url - test additional query vars": {
 			"/test/abc/def", "test3", "abc123", http.StatusOK},
+		"all fine, next user with extended url - test additional query vars that are URL encoded": {
+			"/test/abc/person@example.co.uk", "test3", "abc123", http.StatusOK},
 	} {
 		t.Run(fmt.Sprintf("#%s", k), func(t *testing.T) {
 			var handler = mux.NewRouter()
@@ -232,13 +236,13 @@ func Test_Basic(t *testing.T) {
 					w.WriteHeader(http.StatusOK)
 					return
 				}
-			}())).Methods("GET")
+			}())).Methods(http.MethodGet)
 
 			var server = httptest.NewServer(handler)
 			defer server.Close()
 
 			var res = httptest.NewRecorder()
-			req, err := http.NewRequest("GET", fmt.Sprintf("%s", test.route), nil)
+			req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s", test.route), nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -281,14 +285,14 @@ func Benchmark_BasicAuth(b *testing.B) {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
-	}())).Methods("GET")
+	}())).Methods(http.MethodGet)
 
 	var server = httptest.NewServer(handler)
 	defer server.Close()
 
 	for n := 0; n < b.N; n++ {
 		var res = httptest.NewRecorder()
-		req, err := http.NewRequest("GET", "/test", nil)
+		req, err := http.NewRequest(http.MethodGet, "/test", nil)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -589,13 +593,13 @@ func Test_Digest_Auth(t *testing.T) {
 					w.WriteHeader(http.StatusOK)
 					return
 				}
-			}())).Methods("GET")
+			}())).Methods(http.MethodGet)
 
 			var server = httptest.NewServer(handler)
 			defer server.Close()
 
 			var res = httptest.NewRecorder()
-			req, err := http.NewRequest("GET", "/test", ioutil.NopCloser(strings.NewReader(test.payload)))
+			req, err := http.NewRequest(http.MethodGet, "/test", ioutil.NopCloser(strings.NewReader(test.payload)))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -662,14 +666,14 @@ func Benchmark_DigestAuth(b *testing.B) {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
-	}())).Methods("GET")
+	}())).Methods(http.MethodGet)
 
 	var server = httptest.NewServer(handler)
 	defer server.Close()
 
 	for n := 0; n < b.N; n++ {
 		var res = httptest.NewRecorder()
-		req, err := http.NewRequest("GET", "/test", nil)
+		req, err := http.NewRequest(http.MethodGet, "/test", nil)
 		if err != nil {
 			b.Fatal(err)
 		}
