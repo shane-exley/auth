@@ -14,6 +14,8 @@ import (
 	"strings"
 	"testing"
 
+	amock "github.com/shane-exley/auth/mock"
+
 	redis "github.com/go-redis/redis/v8"
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
@@ -30,11 +32,11 @@ func Test_NewAuth_Byte(t *testing.T) {
 	var a *Auth
 	var err error
 
-	a, err = New("test_app", &MockRedisClient{}, []byte{})
+	a, err = New("test_app", &amock.RedisClient{}, []byte{})
 	assert.NotNil(t, err)
 	assert.Equal(t, "test_app", a.app)
 
-	a, err = New("test_app", &MockRedisClient{}, []byte(`[{
+	a, err = New("test_app", &amock.RedisClient{}, []byte(`[{
         "user": "test",
         "pass": "abc123",
         "auth": [
@@ -57,11 +59,11 @@ func Test_NewAuth_Authentication(t *testing.T) {
 	var a *Auth
 	var err error
 
-	a, err = New("test_app", &MockRedisClient{}, []Authentication{})
+	a, err = New("test_app", &amock.RedisClient{}, []Authentication{})
 	assert.Nil(t, err)
 	assert.Equal(t, "test_app", a.app)
 
-	a, err = New("test_app", &MockRedisClient{}, []Authentication{
+	a, err = New("test_app", &amock.RedisClient{}, []Authentication{
 		Authentication{
 			User: "test",
 			Pass: "abc123",
@@ -83,7 +85,7 @@ func Test_NewAuth_Authentication(t *testing.T) {
 }
 
 func Test_Token(t *testing.T) {
-	auth, _ := New("test_app", &MockRedisClient{}, []byte(`[
+	auth, _ := New("test_app", &amock.RedisClient{}, []byte(`[
         {
             "token": "test1",
             "auth": []
@@ -99,6 +101,12 @@ func Test_Token(t *testing.T) {
             "auth": [
                 "test",
                 "test/*"
+            ]
+        },
+        {
+            "token": "test4",
+            "auth": [
+                "*"
             ]
         }
     ]`))
@@ -141,6 +149,10 @@ func Test_Token(t *testing.T) {
 			"/test/abc/def", "test3", http.StatusOK},
 		"all fine, next user with extended url - test additional query vars that are URL encoded": {
 			"/test/abc/person@example.co.uk", "test3", http.StatusOK},
+		"all fine, full wildcard": {
+			"/test", "test4", http.StatusOK},
+		"all fine, full wildcard with extended url": {
+			"/test/abc", "test4", http.StatusOK},
 	} {
 		t.Run(fmt.Sprintf("#%s", k), func(t *testing.T) {
 			var handler = mux.NewRouter()
@@ -169,7 +181,7 @@ func Test_Token(t *testing.T) {
 }
 
 func Test_Basic(t *testing.T) {
-	auth, _ := New("test_app", &MockRedisClient{}, []byte(`[
+	auth, _ := New("test_app", &amock.RedisClient{}, []byte(`[
         {
             "user": "test1",
             "pass": "7987df9d7d6295274858924ab328cc55",
@@ -188,6 +200,13 @@ func Test_Basic(t *testing.T) {
             "auth": [
                 "test",
                 "test/*"
+            ]
+        },
+        {
+            "user": "test4",
+            "pass": "740a7da14da2eee674f9c2fa53df9ba4",
+            "auth": [
+                "*"
             ]
         }
     ]`))
@@ -228,6 +247,10 @@ func Test_Basic(t *testing.T) {
 			"/test/abc/def", "test3", "abc123", http.StatusOK},
 		"all fine, next user with extended url - test additional query vars that are URL encoded": {
 			"/test/abc/person@example.co.uk", "test3", "abc123", http.StatusOK},
+		"all fine, full wildcard": {
+			"/test", "test4", "abc123", http.StatusOK},
+		"all fine, full wildcard with extended url": {
+			"/test/abc", "test4", "abc123", http.StatusOK},
 	} {
 		t.Run(fmt.Sprintf("#%s", k), func(t *testing.T) {
 			var handler = mux.NewRouter()
@@ -257,7 +280,7 @@ func Test_Basic(t *testing.T) {
 
 func Benchmark_BasicAuth(b *testing.B) {
 	auth, _ := New("test_app", func() RedisClient {
-		r := &MockRedisClient{}
+		r := &amock.RedisClient{}
 		r.On("Get", mock.Anything, mock.Anything).Return(
 			redis.NewStringResult("{\"nc\":\"00000001\"}", nil),
 		)
@@ -309,7 +332,7 @@ func Test_Digest_Auth(t *testing.T) {
 	}{
 		"AUTH - no username present": {
 			"", QOPAuth, "", "", func() RedisClient {
-				r := &MockRedisClient{}
+				r := &amock.RedisClient{}
 				r.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
 					&redis.StatusCmd{},
 				)
@@ -319,7 +342,7 @@ func Test_Digest_Auth(t *testing.T) {
 
 		"AUTH - username present, no password for this user": {
 			"test fail", QOPAuth, "", "", func() RedisClient {
-				r := &MockRedisClient{}
+				r := &amock.RedisClient{}
 				r.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
 					&redis.StatusCmd{},
 				)
@@ -329,7 +352,7 @@ func Test_Digest_Auth(t *testing.T) {
 
 		"AUTH - username present but upon redis get, an error is returned": {
 			"test1", QOPAuth, "", "", func() RedisClient {
-				r := &MockRedisClient{}
+				r := &amock.RedisClient{}
 				r.On("Get", mock.Anything, mock.Anything).Return(
 					redis.NewStringResult("", errors.New("Test Error")),
 				)
@@ -345,7 +368,7 @@ func Test_Digest_Auth(t *testing.T) {
 
 		"AUTH - username present but the given qop doesnt match expected for this auth": {
 			"test1", QOPAuthInt, "", "", func() RedisClient {
-				r := &MockRedisClient{}
+				r := &amock.RedisClient{}
 				r.On("Get", mock.Anything, mock.Anything).Return(
 					redis.NewStringResult("{\"ha1\":\"abc\", \"nc\":\"00000001\"}", nil),
 				)
@@ -361,7 +384,7 @@ func Test_Digest_Auth(t *testing.T) {
 
 		"AUTH - username present but the given cnonce doesnt match expected for this auth": {
 			"test1", QOPAuth, "", "", func() RedisClient {
-				r := &MockRedisClient{}
+				r := &amock.RedisClient{}
 				r.On("Get", mock.Anything, mock.Anything).Return(
 					redis.NewStringResult("{\"ha1\":\"abc\", \"nc\":\"00000001\", \"cnonce\":\"def456hij789\"}", nil),
 				)
@@ -377,7 +400,7 @@ func Test_Digest_Auth(t *testing.T) {
 
 		"AUTH - username present but the given nc doesnt match expected for this auth": {
 			"test1", QOPAuth, "", "", func() RedisClient {
-				r := &MockRedisClient{}
+				r := &amock.RedisClient{}
 				r.On("Get", mock.Anything, mock.Anything).Return(
 					redis.NewStringResult("{\"ha1\":\"abc\", \"nc\":\"00000002\"}", nil),
 				)
@@ -393,7 +416,7 @@ func Test_Digest_Auth(t *testing.T) {
 
 		"AUTH - username present and redis entry found for the request but it does not match the provided response, could be tampered with (man in the middle)": {
 			"test1", QOPAuth, "", "", func() RedisClient {
-				r := &MockRedisClient{}
+				r := &amock.RedisClient{}
 				r.On("Get", mock.Anything, mock.Anything).Return(
 					redis.NewStringResult("{\"nc\":\"00000001\"}", nil),
 				)
@@ -409,7 +432,7 @@ func Test_Digest_Auth(t *testing.T) {
 
 		"AUTH - username present and redis entry found for the request and it does match the provided response. The user in this case does not have authorisation": {
 			"test1", QOPAuth, "", "cd8108bc1be87a703f40bc7213ba7b24", func() RedisClient {
-				r := &MockRedisClient{}
+				r := &amock.RedisClient{}
 				r.On("Get", mock.Anything, mock.Anything).Return(
 					redis.NewStringResult("{\"nc\":\"00000001\"}", nil),
 				)
@@ -425,7 +448,7 @@ func Test_Digest_Auth(t *testing.T) {
 
 		"AUTH - username present and redis entry found for the request and it does match the provided response. The user in this case does have authorisation": {
 			"test2", QOPAuth, "", "e22f199b150e2db4a87df2ac78341add", func() RedisClient {
-				r := &MockRedisClient{}
+				r := &amock.RedisClient{}
 				r.On("Get", mock.Anything, mock.Anything).Return(
 					redis.NewStringResult("{\"nc\":\"00000001\"}", nil),
 				)
@@ -442,7 +465,7 @@ func Test_Digest_Auth(t *testing.T) {
 		"AUTH-INT - no username present": {
 			"", QOPAuthInt, "", "",
 			func() RedisClient {
-				r := &MockRedisClient{}
+				r := &amock.RedisClient{}
 				r.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
 					&redis.StatusCmd{},
 				)
@@ -452,7 +475,7 @@ func Test_Digest_Auth(t *testing.T) {
 		"AUTH-INT - username present, no password for this user": {
 			"test fail", QOPAuthInt, "", "",
 			func() RedisClient {
-				r := &MockRedisClient{}
+				r := &amock.RedisClient{}
 				r.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
 					&redis.StatusCmd{},
 				)
@@ -461,7 +484,7 @@ func Test_Digest_Auth(t *testing.T) {
 
 		"AUTH-INT - username present but upon redis get, an error is returned": {
 			"test1", QOPAuthInt, "", "", func() RedisClient {
-				r := &MockRedisClient{}
+				r := &amock.RedisClient{}
 				r.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
 					&redis.StatusCmd{},
 				)
@@ -477,7 +500,7 @@ func Test_Digest_Auth(t *testing.T) {
 
 		"AUTH-INT - username present but the given qop doesnt match expected for this auth": {
 			"test1", QOPAuth, "", "", func() RedisClient {
-				r := &MockRedisClient{}
+				r := &amock.RedisClient{}
 				r.On("Get", mock.Anything, mock.Anything).Return(
 					redis.NewStringResult("", errors.New("Test Error")),
 				)
@@ -493,7 +516,7 @@ func Test_Digest_Auth(t *testing.T) {
 
 		"AUTH-INT - username present but the given cnonce doesnt match expected for this auth": {
 			"test1", QOPAuthInt, "", "", func() RedisClient {
-				r := &MockRedisClient{}
+				r := &amock.RedisClient{}
 				r.On("Get", mock.Anything, mock.Anything).Return(
 					redis.NewStringResult("{\"nc\":\"00000001\", \"cnonce\":\"def456hij789\"}", nil),
 				)
@@ -509,7 +532,7 @@ func Test_Digest_Auth(t *testing.T) {
 
 		"AUTH-INT - username present but the given nc doesnt match expected for this auth": {
 			"test1", QOPAuthInt, "", "", func() RedisClient {
-				r := &MockRedisClient{}
+				r := &amock.RedisClient{}
 				r.On("Get", mock.Anything, mock.Anything).Return(
 					redis.NewStringResult("{\"nc\":\"00000002\"}", nil),
 				)
@@ -525,7 +548,7 @@ func Test_Digest_Auth(t *testing.T) {
 
 		"AUTH-INT - username present and redis entry found for the request but it does not match the provided response, could be tampered with (man in the middle)": {
 			"test1", QOPAuthInt, "", "", func() RedisClient {
-				r := &MockRedisClient{}
+				r := &amock.RedisClient{}
 				r.On("Get", mock.Anything, mock.Anything).Return(
 					redis.NewStringResult("{\"nc\":\"00000001\"}", nil),
 				)
@@ -541,7 +564,7 @@ func Test_Digest_Auth(t *testing.T) {
 
 		"AUTH-INT - username present and redis entry found for the request and it does match the provided response. The user in this case does not have authorisation": {
 			"test1", QOPAuthInt, "Test 1", "d0584855b7c0511107b260e90d494e9d", func() RedisClient {
-				r := &MockRedisClient{}
+				r := &amock.RedisClient{}
 				r.On("Get", mock.Anything, mock.Anything).Return(
 					redis.NewStringResult("{\"nc\":\"00000001\"}", nil),
 				)
@@ -557,7 +580,7 @@ func Test_Digest_Auth(t *testing.T) {
 
 		"AUTH-INT - username present and redis entry found for the request and it does match the provided response. The user in this case does have authorisation": {
 			"test2", QOPAuthInt, "", "eeab130bfee2768d88cfac2a9afc160e", func() RedisClient {
-				r := &MockRedisClient{}
+				r := &amock.RedisClient{}
 				r.On("Get", mock.Anything, mock.Anything).Return(
 					redis.NewStringResult("{\"nc\":\"00000001\"}", nil),
 				)
@@ -638,7 +661,7 @@ func Test_md5(t *testing.T) {
 
 func Benchmark_DigestAuth(b *testing.B) {
 	auth, _ := New("test_app", func() RedisClient {
-		r := &MockRedisClient{}
+		r := &amock.RedisClient{}
 		r.On("Get", mock.Anything, mock.Anything).Return(
 			redis.NewStringResult("{\"nc\":\"00000001\"}", nil),
 		)

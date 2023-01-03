@@ -1,6 +1,6 @@
 module github.com/shane-exley/auth
 
-go 1.17
+go 1.18
 
 require (
 	github.com/LK4D4/trylock v0.0.0-20191027065348-ff7e133a5c54
@@ -8,8 +8,8 @@ require (
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/mux v1.8.0
 	github.com/jpillora/backoff v1.0.0
-	github.com/stretchr/testify v1.7.0
-	golang.org/x/time v0.2.0
+	github.com/stretchr/testify v1.8.1
+	golang.org/x/time v0.3.0
 )
 
 require (
@@ -17,6 +17,6 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/stretchr/objx v0.1.0 // indirect
-	gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c // indirect
+	github.com/stretchr/objx v0.5.0 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
