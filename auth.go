@@ -50,7 +50,7 @@ const (
 	ncStart string = "00000001"
 )
 
-const permissionsReg string = "[a-zA-Z0-9/+%@_~:.-]{1,}"
+const permissionsReg string = "[a-zA-Z0-9/+=%@_~:.-]{1,}"
 
 // NonceTTL defines to the time of a nonce to live, a var instead of const so that
 // it can be overwritten

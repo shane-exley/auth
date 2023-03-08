@@ -153,6 +153,8 @@ func Test_Token(t *testing.T) {
 			"/test", "test4", http.StatusOK},
 		"all fine, full wildcard with extended url": {
 			"/test/abc", "test4", http.StatusOK},
+		"all fine, full wildcard with extended url thats base64encoded": {
+			"/test/WwoJIkFCQzEyMyIsCgkiREVGNDU2IiwKIkVGRzY3OCIKXQ==", "test4", http.StatusOK},
 	} {
 		t.Run(fmt.Sprintf("#%s", k), func(t *testing.T) {
 			var handler = mux.NewRouter()
@@ -251,6 +253,8 @@ func Test_Basic(t *testing.T) {
 			"/test", "test4", "abc123", http.StatusOK},
 		"all fine, full wildcard with extended url": {
 			"/test/abc", "test4", "abc123", http.StatusOK},
+		"all fine, full wildcard with extended url thats base64encoded": {
+			"/test/WwoJIkFCQzEyMyIsCgkiREVGNDU2IiwKIkVGRzY3OCIKXQ==", "test4", "abc123", http.StatusOK},
 	} {
 		t.Run(fmt.Sprintf("#%s", k), func(t *testing.T) {
 			var handler = mux.NewRouter()
