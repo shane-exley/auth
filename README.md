@@ -12,6 +12,12 @@ Simple username and password authentication.
 
 Nonce based on RFC 4122 and DCE 1.1: Authentication and Security Services. See [Wiki](https://en.wikipedia.org/wiki/Digest_access_authentication) for further details on operation and usage. In this package we use a redis cache instance to store and manage the nonce handling.
 
+---
+**IMPORTANT**
+
+Any reference to `pass` or `password` is not the actual password for the consumer to use, this is a MD5 hash string of a concatenation of `username`, `application name` and the underlying `password` that is provided to the consumer. This way once the password is provided to the consumer there is no knowledge of that value apart from embedded in the MD5 hash thats put into the configuration.
+---
+
 ## Usage
 
 ```
