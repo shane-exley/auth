@@ -257,7 +257,6 @@ func (a *Auth) Token(h http.Handler) http.Handler {
 func (a *Auth) Basic(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		user, pass, _ := r.BasicAuth()
-		fmt.Println("auth", a.authentication)
 
 		// checking authentication
 		if p, ok := a.authentication[user]; ok {
