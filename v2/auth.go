@@ -14,7 +14,8 @@ package auth
 	  "/api/ops/task2",
 	  "/api/ops/task3"
     ]
-  }```
+  }
+  ```
 
   Secondly, the users for which roles they are assigned to
   ```
@@ -34,7 +35,11 @@ package auth
 */
 
 import (
+	"bytes"
+	"crypto/hmac"
 	crypto "crypto/md5"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -470,6 +475,49 @@ func (a *Auth) Digest(qop string, h http.Handler) http.HandlerFunc {
 			return
 		}
 		h.ServeHTTP(w, r)
+		return
+	})
+}
+
+// HMAC performs a more secure authetication
+func (a *Auth) HMAC(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := a.authentication[r.Header.Get("Auth-Token")]; !ok {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
+		if r.Header.Get("Auth-Hmac") == func(secret string) string {
+			b, _ := ioutil.ReadAll(r.Body)
+			r.Body = ioutil.NopCloser(bytes.NewReader(b))
+
+			hasher := hmac.New(sha256.New, []byte(secret))
+			hasher.Write(b)
+			return hex.EncodeToString(hasher.Sum(nil))
+
+		}(a.authentication[r.Header.Get("Auth-Hmac")]) {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
+		// does this token have access to the route
+		// check authorisation
+		if permissions, ok := a.authorisation[r.Header.Get("Auth-Token")]; ok {
+			if len(permissions) > 0 {
+				for _, permission := range permissions {
+					if matched, _ := regexp.MatchString(fmt.Sprintf("^%s$", strings.Replace(permission, "*", permissionsReg, -1)), r.URL.Path[1:]); matched {
+						if !a.Allow() {
+							w.WriteHeader(http.StatusTooManyRequests)
+							return
+						}
+						h.ServeHTTP(w, r)
+						return
+					}
+				}
+			}
+		}
+
+		w.WriteHeader(http.StatusForbidden)
 		return
 	})
 }

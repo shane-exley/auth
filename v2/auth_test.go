@@ -5,7 +5,10 @@ package auth
 
 import (
 	"bytes"
+	"crypto/hmac"
+	"crypto/sha256"
 	"encoding/gob"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -784,5 +787,79 @@ func Benchmark_DigestAuth(b *testing.B) {
 		req.Header.Set("Authorization", fmt.Sprintf(`Digest username="%s", realm="%s", nonce="%s", uri="%s", cnonce="%s", nc="%v", qop="%s", response="%s"`,
 			"benchmark_test", "test_app", "ABC-123-DEF-456", "/test?foo=bar", "abc123def456", "00000001", "auth", "1929bc29bb3ac560435821d030baef6c"))
 		handler.ServeHTTP(res, req)
+	}
+}
+
+func Test_HMAC_Auth(t *testing.T) {
+	for k, test := range map[string]struct {
+		user, pass, payload string
+		code                int
+	}{
+		"no user present": {
+			"", "", "", http.StatusUnauthorized,
+		},
+		"user present with incorrect pass": {
+			"test1", "", "{}", http.StatusUnauthorized,
+		},
+		"user present with correct pass, no permissions": {
+			"test1", "7987df9d7d6295274858924ab328cc55", "{}", http.StatusForbidden,
+		},
+		"user present with correct pass, with permissions": {
+			"test2", "e22f199b150e2db4a87df2ac78341add", "{}", http.StatusOK,
+		},
+	} {
+		t.Run(fmt.Sprintf("#%s", k), func(t *testing.T) {
+			auth, err := New("test_app", nil,
+				[]byte(`{
+					"role1": [
+						"test"
+					]
+				}`),
+				[]byte(`[
+		        {
+		            "user": "test1",
+		            "pass": "7987df9d7d6295274858924ab328cc55",
+		            "roles": []
+		        },
+		        {
+		            "user": "test2",
+		            "pass": "ec41d671cf2be1b2f2adda930ea3e45b",
+		            "roles": [
+		                "role1"
+		            ]
+		        }
+		    ]`))
+
+			assert.Nil(t, err)
+
+			var handler = mux.NewRouter()
+			handler.Handle("/test", auth.HMAC(func() http.HandlerFunc {
+				return func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(http.StatusOK)
+					return
+				}
+			}())).Methods(http.MethodGet)
+
+			var server = httptest.NewServer(handler)
+			defer server.Close()
+
+			var res = httptest.NewRecorder()
+			req, err := http.NewRequest(http.MethodGet, "/test", ioutil.NopCloser(strings.NewReader(test.payload)))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			req.Header.Set("Auth-Token", test.user)
+			req.Header.Set("Auth-Hmac", func(key string, msg []byte) string {
+				mac := hmac.New(sha256.New, []byte(key))
+				mac.Write(msg)
+
+				return hex.EncodeToString(mac.Sum(nil))
+			}(test.pass, []byte(test.payload)))
+
+			handler.ServeHTTP(res, req)
+
+			assert.Equal(t, test.code, res.Code)
+		})
 	}
 }
