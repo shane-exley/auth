@@ -131,7 +131,7 @@ type Auth struct {
 var roles = map[string][]string{}
 
 // New instantiates an Auth instance
-func New(app string, storage RedisClient, r interface{}, auth interface{}) (*Auth, error) {
+func New(app string, storage RedisClient, r any, auth any) (*Auth, error) {
 	a := &Auth{
 		app:     app,
 		storage: storage,
