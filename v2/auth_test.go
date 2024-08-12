@@ -8,7 +8,6 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/gob"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -799,13 +798,13 @@ func Test_HMAC_Auth(t *testing.T) {
 			"", "", "", http.StatusUnauthorized,
 		},
 		"user present with incorrect pass": {
-			"test1", "", "{}", http.StatusUnauthorized,
+			"test1", "", "{\"abc\":123}", http.StatusUnauthorized,
 		},
 		"user present with correct pass, no permissions": {
-			"test1", "7987df9d7d6295274858924ab328cc55", "{}", http.StatusForbidden,
+			"test1", "7987df9d7d6295274858924ab328cc55", "{\"abc\":123}", http.StatusForbidden,
 		},
 		"user present with correct pass, with permissions": {
-			"test2", "e22f199b150e2db4a87df2ac78341add", "{}", http.StatusOK,
+			"test2", "ec41d671cf2be1b2f2adda930ea3e45b", "{\"abc\":123}", http.StatusOK,
 		},
 	} {
 		t.Run(fmt.Sprintf("#%s", k), func(t *testing.T) {
@@ -850,12 +849,11 @@ func Test_HMAC_Auth(t *testing.T) {
 			}
 
 			req.Header.Set("Auth-Token", test.user)
-			req.Header.Set("Auth-Hmac", func(key string, msg []byte) string {
-				mac := hmac.New(sha256.New, []byte(key))
-				mac.Write(msg)
-
-				return hex.EncodeToString(mac.Sum(nil))
-			}(test.pass, []byte(test.payload)))
+			req.Header.Set("Auth-Hmac", string(func(key string, msg []byte) []byte {
+				hasher := hmac.New(sha256.New, []byte(key))
+				hasher.Write(msg)
+				return hasher.Sum(nil)
+			}(test.pass, []byte(test.payload))))
 
 			handler.ServeHTTP(res, req)
 
