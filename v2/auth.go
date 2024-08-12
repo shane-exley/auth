@@ -39,6 +39,7 @@ import (
 	"crypto/hmac"
 	crypto "crypto/md5"
 	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -486,15 +487,14 @@ func (a *Auth) HMAC(h http.Handler) http.Handler {
 			return
 		}
 
-		if !hmac.Equal([]byte(r.Header.Get("Auth-Hmac")), func(secret string) []byte {
+		if r.Header.Get("Auth-Hmac") != func(secret string) string {
 			b, _ := ioutil.ReadAll(r.Body)
 			r.Body = ioutil.NopCloser(bytes.NewReader(b))
 
-			hasher := hmac.New(sha256.New, []byte(secret))
-			hasher.Write(b)
-			return hasher.Sum(nil)
-
-		}(a.authentication[r.Header.Get("Auth-Token")])) {
+			h := hmac.New(sha256.New, []byte(secret))
+			h.Write(b)
+			return hex.EncodeToString(h.Sum(nil))
+		}(a.authentication[r.Header.Get("Auth-Token")]) {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}

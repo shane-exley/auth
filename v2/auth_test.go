@@ -8,6 +8,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/gob"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -849,10 +850,10 @@ func Test_HMAC_Auth(t *testing.T) {
 			}
 
 			req.Header.Set("Auth-Token", test.user)
-			req.Header.Set("Auth-Hmac", string(func(key string, msg []byte) []byte {
-				hasher := hmac.New(sha256.New, []byte(key))
-				hasher.Write(msg)
-				return hasher.Sum(nil)
+			req.Header.Set("Auth-Hmac", string(func(key string, msg []byte) string {
+				h := hmac.New(sha256.New, []byte(key))
+				h.Write([]byte(msg))
+				return hex.EncodeToString(h.Sum(nil))
 			}(test.pass, []byte(test.payload))))
 
 			handler.ServeHTTP(res, req)
