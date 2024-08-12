@@ -7,12 +7,12 @@ package auth
   ```
   {
     "tooladmin": [
-      "/api/*",
+      "api/*",
     ],
     "toolops": [
-      "/api/ops/task1",
-	  "/api/ops/task2",
-	  "/api/ops/task3"
+      "api/ops/task1",
+	  "api/ops/task2",
+	  "api/ops/task3"
     ]
   }
   ```
