@@ -78,6 +78,14 @@ var NonceTTL time.Duration = 30 * time.Second
 // lock is used to allow concurrency but the auth needs to be locked for certain events
 var lock = &trylock.Mutex{}
 
+var passkey = func(user, app, key string) string {
+	return md5(strings.Join([]string{
+		user,
+		app,
+		key,
+	}, ":"))
+}
+
 // digestAuth is a storage object
 type digestAuth struct {
 	HA1    string `json:"ha1"`
@@ -265,12 +273,8 @@ func (a *Auth) Basic(h http.Handler) http.Handler {
 
 		// checking authentication
 		if p, ok := a.authentication[user]; ok {
-
-			if p == md5(strings.Join([]string{
-				user,
-				a.app,
-				pass,
-			}, ":")) {
+			// check that the password matches the passkey
+			if p == passkey(user, a.app, pass) {
 				// check authorisation
 				if permissions, ok := a.authorisation[user]; ok {
 					if len(permissions) > 0 {
